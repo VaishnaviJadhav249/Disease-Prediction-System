@@ -1,0 +1,1604 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Disease Diagnoser Based on Symptoms</title>
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.0.0/dist/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+        <link rel="stylesheet" href="{{ url_for('static', filename='stylesheets/style.css') }}">
+    </head>
+<body>
+
+<!-- Modern Navigation Bar -->
+<nav class="navbar navbar-expand-lg modern-navbar sticky-top mb-3 topnav">
+  <div class="container-fluid px-3">
+    <a class="navbar-brand text-white font-weight-bold" href="/">
+      <i class="fas fa-heartbeat mr-2"></i> HealthDiagnose
+    </a>
+    <div class="navbar-nav ml-auto d-flex flex-row flex-wrap align-items-center">
+      <a class="nav-link active px-3" href="/"><i class="fas fa-stethoscope mr-1"></i> Diagnose</a>
+      <a class="nav-link px-3 survey" href="/survey"><i class="fas fa-clipboard-check mr-1"></i> Take a Survey</a>
+      <a class="nav-link px-3" href="/history"><i class="fas fa-history mr-1"></i> Assessment History</a>
+      <a class="nav-link px-3" href="/timeline"><i class="fas fa-chart-line mr-1"></i> Symptom Timeline</a>
+      <a class="nav-link px-3" href="/profile"><i class="fas fa-user-circle mr-1"></i> Profile</a>
+      {% if current_user %}
+      <a class="nav-link text-warning px-2" href="/logout"><i class="fas fa-sign-out-alt mr-1"></i> Sign Out</a>
+      {% else %}
+      <a class="nav-link text-white px-2 ml-2" href="/login"><i class="fas fa-sign-in-alt mr-1"></i> Sign In</a>
+      <a class="btn btn-sm btn-outline-light ml-2 py-1 px-3" href="/register">Register</a>
+      {% endif %}
+    </div>
+  </div>
+</nav>
+
+<div class="container mt-2">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div class="alert alert-{{ category if category != 'error' else 'danger' }} alert-dismissible fade show shadow-sm" role="alert">
+          {{ message }}
+          <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+</div>
+
+<div class="container text-center mb-4">
+    <h1 class="txt1 font-weight-bold text-dark mt-2">Disease Diagnoser Based on Symptoms</h1>
+    <p class="text-muted lead">Select your symptoms from the list below to receive an ML-based disease prediction.</p>
+</div>
+
+<!-- Medical Informational Banner -->
+<div class="container mb-3">
+    <div class="medical-disclaimer shadow-sm">
+        <i class="fas fa-info-circle fa-lg"></i>
+        <div>
+            <strong>Informational Assessment Notice:</strong> This platform utilizes machine learning for informational symptom evaluation. Predictions do not replace clinical consultation, laboratory diagnostics, or professional medical advice.
+        </div>
+    </div>
+</div>
+
+<div align="center" class="init mb-4">
+    <div class="card p-3 shadow-sm border-0 d-inline-block text-left" style="min-width: 320px; max-width: 500px; width: 100%;">
+        <div class="form-group mb-2">
+            <label for="name" class="lbl font-weight-bold small text-muted">Name : </label>
+            <input type="text" id="name" class="form-control form-control-sm ip" placeholder="Enter patient name">
+        </div>
+        <div class="form-group mb-2">
+            <label for="age" class="lbl font-weight-bold small text-muted">Age : </label>
+            <input type="number" id="age" class="form-control form-control-sm ip" placeholder="Enter age" min="1" max="120">
+        </div>
+        <div class="form-group mb-1">
+            <label for="gender" id="lbl" class="font-weight-bold small text-muted">Gender : </label>
+            <select id="gender" class="form-control form-control-sm gender">
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Other">Other</option>
+            </select>
+        </div>
+    </div>
+</div>
+
+<!-- Search & Selected Counter Controls -->
+<div class="container text-center mb-3">
+    <h5 class="txt2 font-weight-bold text-dark mb-2">Select Your Symptoms</h5>
+    <input type="text" id="symptom-quick-search" class="symptom-search-box" placeholder="Search among 132 symptoms to quickly highlight and find...">
+    <div id="selected-counter" class="selected-counter-badge bg-warning text-dark shadow-sm">
+        <i class="fas fa-exclamation-triangle mr-1"></i> <span id="selected-count-number">0</span> / 3 symptoms selected (Minimum 3 required for diagnosis)
+    </div>
+</div>
+
+<table  id="table" class="t1" style=" margin-left: auto;margin-right:auto">
+    <tr >
+     <th> 
+        <input type="checkbox" class="btn-check" id="btn-check-1" checked autocomplete="off">
+        <label class="btn btn-primary btnCheck" for="btn-check-1">Itching</label></Button>
+      </th>
+      <th> 
+        <input type="checkbox" class="btn-check" id="btn-check-2" checked autocomplete="off">
+        <label class="btn btn-primary btnCheck" for="btn-check-2">Skin Rash</label></Button>
+      </th>
+  <th> 
+    <input type="checkbox" class="btn-check" id="btn-check-3" checked autocomplete="off">
+    <label class="btn btn-primary btnCheck" for="btn-check-3">Nodal Skin</label></Button>
+  </th>
+
+  <th> 
+    <input type="checkbox" class="btn-check" id="btn-check-4" checked autocomplete="off">
+    <label class="btn btn-primary btnCheck" for="btn-check-4">Continuous Sneezing</label></Button>
+  </th>
+    </tr>
+
+<br>
+    <tr>
+      <th> 
+        <input type="checkbox" class="btn-check" id="btn-check-5" checked autocomplete="off">
+        <label class="btn btn-primary btnCheck" for="btn-check-5">Shivering</label></Button>
+      </th>
+      <th> 
+        <input type="checkbox" class="btn-check" id="btn-check-6" checked autocomplete="off">
+        <label class="btn btn-primary btnCheck" for="btn-check-6">Chills</label></Button>
+      </th>
+      <th> 
+        <input type="checkbox" class="btn-check" id="btn-check-7" checked autocomplete="off">
+        <label class="btn btn-primary btnCheck" for="btn-check-7">Joint Pain</label></Button>
+      </th>
+      <th> 
+        <input type="checkbox" class="btn-check" id="btn-check-8" checked autocomplete="off">
+        <label class="btn btn-primary btnCheck" for="btn-check-8">Stomach Pain</label></Button>
+      </th>
+    </tr>
+
+    <br>
+
+    <tr>
+      <th> 
+        <input type="checkbox" class="btn-check" id="btn-check-9" checked autocomplete="off">
+        <label class="btn btn-primary btnCheck" for="btn-check-9">Acidity</label></Button>
+      </th>
+      <th> 
+        <input type="checkbox" class="btn-check" id="btn-check-10" checked autocomplete="off">
+        <label class="btn btn-primary btnCheck" for="btn-check-10">Ulcers</label></Button>
+      </th>
+      <th> 
+        <input type="checkbox" class="btn-check" id="btn-check-11" checked autocomplete="off">
+        <label class="btn btn-primary btnCheck" for="btn-check-11">Muscle Wasting</label></Button>
+      </th>
+      <th> 
+        <input type="checkbox" class="btn-check" id="btn-check-12" checked autocomplete="off">
+        <label class="btn btn-primary btnCheck" for="btn-check-12">Vomiting</label></Button>
+      </th>
+    </tr>
+
+
+
+
+    <tr>
+      <th> 
+        <input type="checkbox" class="btn-check" id="btn-check-13" checked autocomplete="off">
+        <label class="btn btn-primary btnCheck" for="btn-check-13">Burning Micturition</label></Button>
+      </th>
+      <th> 
+        <input type="checkbox" class="btn-check" id="btn-check-14" checked autocomplete="off">
+        <label class="btn btn-primary btnCheck" for="btn-check-14">Spotting</label></Button>
+      </th>
+      <th> 
+        <input type="checkbox" class="btn-check" id="btn-check-15" checked autocomplete="off">
+        <label class="btn btn-primary btnCheck" for="btn-check-15">Fatigue</label></Button>
+      </th>
+      <th> 
+        <input type="checkbox" class="btn-check" id="btn-check-16" checked autocomplete="off" >
+        <label class="btn btn-primary btnCheck" for="btn-check-16">Weight Gain</label></Button>
+      </th>
+    </tr>
+
+
+
+
+
+
+
+    <tr>
+      <th> 
+        <input type="checkbox" class="btn-check" id="btn-check-17" checked autocomplete="off">
+        <label class="btn btn-primary btnCheck" for="btn-check-17">Anxiety</label></Button>
+      </th>
+      <th> 
+        <input type="checkbox" class="btn-check" id="btn-check-18" checked autocomplete="off">
+        <label class="btn btn-primary btnCheck" for="btn-check-18">Cold feets</label></Button>
+      </th>
+      <th> 
+        <input type="checkbox" class="btn-check" id="btn-check-19" checked autocomplete="off">
+        <label class="btn btn-primary btnCheck" for="btn-check-19">Mood Swings</label></Button>
+      </th>
+      <th> 
+        <input type="checkbox" class="btn-check" id="btn-check-20" checked autocomplete="off">
+        <label class="btn btn-primary btnCheck" for="btn-check-20">Weight Loss</label></Button>
+      </th>
+    </tr>
+
+
+
+
+
+    <tr>
+      <th> 
+        <input type="checkbox" class="btn-check" id="btn-check-21" checked autocomplete="off">
+        <label class="btn btn-primary btnCheck" for="btn-check-21">Restlessness</label></Button>
+      </th>
+      <th> 
+        <input type="checkbox" class="btn-check" id="btn-check-22" checked autocomplete="off">
+        <label class="btn btn-primary btnCheck" for="btn-check-22">Lethargy</label></Button>
+      </th>
+      <th> 
+        <input type="checkbox" class="btn-check" id="btn-check-23" checked autocomplete="off">
+        <label class="btn btn-primary btnCheck" for="btn-check-23">Throat Patches</label></Button>
+      </th>
+      <th> 
+        <input type="checkbox" class="btn-check" id="btn-check-24" checked autocomplete="off">
+        <label class="btn btn-primary btnCheck" for="btn-check-24">Irregular Sugar</label></Button>
+      </th>
+    </tr>
+
+
+
+
+    <tr>
+      <th> 
+        <input type="checkbox" class="btn-check" id="btn-check-25" checked autocomplete="off">
+        <label class="btn btn-primary btnCheck" for="btn-check-25">Cough</label></Button>
+      </th>
+      <th> 
+        <input type="checkbox" class="btn-check" id="btn-check-26" autocomplete="off">
+        <label class="btn btn-primary btnCheck" for="btn-check-26">High Fever</label></Button>
+      </th>
+      <th> 
+        <input type="checkbox" class="btn-check" id="btn-check-27" checked autocomplete="off">
+        <label class="btn btn-primary btnCheck" for="btn-check-27">Sunken Eyes</label></Button>
+      </th>
+      <th> 
+        <input type="checkbox" class="btn-check" id="btn-check-28" checked autocomplete="off">
+        <label class="btn btn-primary btnCheck" for="btn-check-28">Breathlessness</label></Button>
+      </th>
+    </tr>
+
+
+    
+
+    <tr>
+      <th> 
+        <input type="checkbox" class="btn-check" id="btn-check-29" checked autocomplete="off">
+        <label class="btn btn-primary btnCheck" for="btn-check-29">Sweating</label></Button>
+      </th>
+      <th> 
+        <input type="checkbox" class="btn-check" id="btn-check-30" checked autocomplete="off">
+        <label class="btn btn-primary btnCheck" for="btn-check-30">Dehydration</label></Button>
+      </th>
+      <th> 
+        <input type="checkbox" class="btn-check" id="btn-check-31" checked autocomplete="off">
+        <label class="btn btn-primary btnCheck" for="btn-check-31">Indigestion</label></Button>
+      </th>
+      <th> 
+        <input type="checkbox" class="btn-check" id="btn-check-32" checked autocomplete="off">
+        <label class="btn btn-primary btnCheck" for="btn-check-32">Headache</label></Button>
+      </th>
+    </tr>
+
+
+
+    <tr>
+      <th> 
+        <input type="checkbox" class="btn-check" id="btn-check-33" checked autocomplete="off">
+        <label class="btn btn-primary btnCheck" for="btn-check-33">Yellowish Skin</label></Button>
+      </th>
+      <th> 
+        <input type="checkbox" class="btn-check" id="btn-check-34" checked autocomplete="off">
+        <label class="btn btn-primary btnCheck" for="btn-check-34">Dark Urine</label></Button>
+      </th>
+      <th> 
+        <input type="checkbox" class="btn-check" id="btn-check-35" checked autocomplete="off">
+        <label class="btn btn-primary btnCheck" for="btn-check-35">Nausea</label></Button>
+      </th>
+      <th> 
+        <input type="checkbox" class="btn-check" id="btn-check-36" checked autocomplete="off">
+        <label class="btn btn-primary btnCheck" for="btn-check-36">Apetite Loss</label></Button>
+      </th>
+    </tr>
+
+
+
+    <tr>
+      <th> 
+        <input type="checkbox" class="btn-check" id="btn-check-37" checked autocomplete="off">
+        <label class="btn btn-primary btnCheck" for="btn-check-37">Pain Behind Eyes</label></Button>
+      </th>
+      <th> 
+        <input type="checkbox" class="btn-check" id="btn-check-38" checked autocomplete="off">
+        <label class="btn btn-primary btnCheck" for="btn-check-38">Backpain</label></Button>
+      </th>
+      <th> 
+        <input type="checkbox" class="btn-check" id="btn-check-39" checked autocomplete="off">
+        <label class="btn btn-primary btnCheck" for="btn-check-39">Constipation</label></Button>
+      </th>
+      <th> 
+        <input type="checkbox" class="btn-check" id="btn-check-40" checked autocomplete="off">
+        <label class="btn btn-primary btnCheck" for="btn-check-40">Abdominal Pain</label></Button>
+      </th>
+    </tr>
+
+
+
+    <tr >
+      <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-41" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-41">Diarrhoea</label></Button>
+       </th>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-42" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-42">Mild Fever</label></Button>
+       </th>
+   <th> 
+     <input type="checkbox" class="btn-check" id="btn-check-43" checked autocomplete="off">
+     <label class="btn btn-primary btnCheck" for="btn-check-43">Yellow Urine</label></Button>
+   </th>
+ 
+   <th> 
+     <input type="checkbox" class="btn-check" id="btn-check-44" checked autocomplete="off">
+     <label class="btn btn-primary btnCheck" for="btn-check-44">Yellowing of Eyes</label></Button>
+   </th>
+     </tr>
+ 
+ <br>
+     <tr>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-45" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-45">Acute Liver Failure</label></Button>
+       </th>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-46" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-46">Fluid Overload</label></Button>
+       </th>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-47" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-47">Swelling of Stomach</label></Button>
+       </th>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-48" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-48">Swlled Lymph Nodes</label></Button>
+       </th>
+     </tr>
+ 
+     <br>
+ 
+     <tr>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-49" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-49">Malaise</label></Button>
+       </th>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-50" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-50">Blurred Vision</label></Button>
+       </th>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-51" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-51">Phlegm</label></Button>
+       </th>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-52" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-52">Throat Irritation</label></Button>
+       </th>
+     </tr>
+ 
+ 
+ 
+ 
+     <tr>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-53" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-53">Redness of Eyes</label></Button>
+       </th>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-54" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-54">Sinus Pressure</label></Button>
+       </th>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-55" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-55">Runny Nose</label></Button>
+       </th>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-56" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-56">Congestion</label></Button>
+       </th>
+     </tr>
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+     <tr>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-57" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-57">Chest Pain</label></Button>
+       </th>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-58" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-58">Weakness in Limbs</label></Button>
+       </th>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-59" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-59">Fast Heart Rate </label></Button>
+       </th>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-60" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-60">Painful Bowel Movements </label></Button>
+       </th>
+     </tr>
+ 
+ 
+ 
+ 
+ 
+     <tr>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-61" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-61">Pain in Anal Region</label></Button>
+       </th>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-62" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-62">Bloody Stool</label></Button>
+       </th>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-63" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-63">Irritation in Anus</label></Button>
+       </th>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-64" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-64">Neck Pain</label></Button>
+       </th>
+     </tr>
+ 
+ 
+ 
+ 
+     <tr>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-65" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-65">Dizziness</label></Button>
+       </th>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-66" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-66">Cramps</label></Button>
+       </th>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-67" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-67">Bruising </label></Button>
+       </th>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-68" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-68">Obesity</label></Button>
+       </th>
+     </tr>
+ 
+ 
+     
+ 
+     <tr>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-69" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-69">Swollen Legs</label></Button>
+       </th>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-70" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-70">Swollen Blood Vessels</label></Button>
+       </th>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-71" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-71">Puffy Face and Eyes</label></Button>
+       </th>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-72" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-72">Enlarged Thyroid</label></Button>
+       </th>
+     </tr>
+ 
+ 
+ 
+     <tr>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-73" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-73">Brittle Nails</label></Button>
+       </th>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-74" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-74">Swollen Extremeties</label></Button>
+       </th>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-75" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-75">Excessive Hunger</label></Button>
+       </th>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-76" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-76">Extra Marital Contacts</label></Button>
+       </th>
+     </tr>
+ 
+ 
+ 
+     <tr>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-77" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-77">Drying and Tingling Tips</label></Button>
+       </th>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-78" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-78">Slurred Speech</label></Button>
+       </th>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-79" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-79">Knee Pain</label></Button>
+       </th>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-80" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-80">Hip Joint Pain</label></Button>
+       </th>
+     </tr>
+
+
+     <tr >
+      <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-81" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-81">Muscle Weakness</label></Button>
+       </th>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-82" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-82">Stiff Neck</label></Button>
+       </th>
+   <th> 
+     <input type="checkbox" class="btn-check" id="btn-check-83" checked autocomplete="off">
+     <label class="btn btn-primary btnCheck" for="btn-check-83">Swelling Joints</label></Button>
+   </th>
+ 
+   <th> 
+     <input type="checkbox" class="btn-check" id="btn-check-84" checked autocomplete="off">
+     <label class="btn btn-primary btnCheck" for="btn-check-84">Movement Stiffness</label></Button>
+   </th>
+     </tr>
+ 
+ <br>
+     <tr>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-85" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-85">Spinning Movemnents</label></Button>
+       </th>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-86" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-86">Loss of Balance</label></Button>
+       </th>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-87" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-87">Unsteadiness</label></Button>
+       </th>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-88" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-88">Weakness of One Side </label></Button>
+       </th>
+     </tr>
+ 
+     <br>
+ 
+     <tr>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-89" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-89">Loss of Smell</label></Button>
+       </th>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-90" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-90">Bladder Discomfort</label></Button>
+       </th>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-91" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-91">Urine foul smell</label></Button>
+       </th>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-92" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-92">Continuous feel of Urine</label></Button>
+       </th>
+     </tr>
+ 
+ 
+ 
+ 
+     <tr>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-93" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-93">Passage of gases</label></Button>
+       </th>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-94" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-94">Internal Itching</label></Button>
+       </th>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-95" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-95">Toxic Look</label></Button>
+       </th>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-96" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-96">Depression</label></Button>
+       </th>
+     </tr>
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+     <tr>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-97" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-97">Irritability</label></Button>
+       </th>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-98" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-98">Muscle pain</label></Button>
+       </th>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-99" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-99">Altered Sensorium</label></Button>
+       </th>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-100" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-100">Red Spots</label></Button>
+       </th>
+     </tr>
+ 
+ 
+ 
+ 
+ 
+     <tr>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-101" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-101">Belly Pain</label></Button>
+       </th>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-102" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-102">Abnormal Menstruation</label></Button>
+       </th>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-103" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-103">Dischromic Patches</label></Button>
+       </th>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-104" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-104">Watering from eyes</label></Button>
+       </th>
+     </tr>
+ 
+ 
+ 
+ 
+     <tr>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-105" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-105">Increased Apetite</label></Button>
+       </th>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-106" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-106">Polyuria</label></Button>
+       </th>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-107" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-107">Family History</label></Button>
+       </th>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-108" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-108">Mucoid Sputum</label></Button>
+       </th>
+     </tr>
+ 
+ 
+     
+ 
+     <tr>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-109" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-109">Rusty Sputum</label></Button>
+       </th>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-110" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-110">Lack of Concentration</label></Button>
+       </th>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-111" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-111">Visual Disturbances </label></Button>
+       </th>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-112" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-112">Receiving Blood Transfusion</label></Button>
+       </th>
+     </tr>
+ 
+ 
+ 
+     <tr>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-113" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-113">Receiving Unsterile Injections</label></Button>
+       </th>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-114" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-114">Coma</label></Button>
+       </th>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-115" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-115">Stomach Bleeding </label></Button>
+       </th>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-116" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-116">Distension Of Abdomen</label></Button>
+       </th>
+     </tr>
+ 
+ 
+ 
+     <tr>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-117" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-117">History of Alcohol consumption</label></Button>
+       </th>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-118" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-118">Fluid Overload</label></Button>
+       </th>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-119" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-119">Blood in Sputum </label></Button>
+       </th>
+       <th> 
+         <input type="checkbox" class="btn-check" id="btn-check-120" checked autocomplete="off">
+         <label class="btn btn-primary btnCheck" for="btn-check-120">Prominent veins on calf</label></Button>
+       </th>
+     </tr>
+
+
+     <tr>
+      <th> 
+        <input type="checkbox" class="btn-check" id="btn-check-121" checked autocomplete="off">
+        <label class="btn btn-primary btnCheck" for="btn-check-121">Palpitations</label></Button>
+      </th>
+      <th> 
+        <input type="checkbox" class="btn-check" id="btn-check-122" checked autocomplete="off">
+        <label class="btn btn-primary btnCheck" for="btn-check-122">Painful Walking</label></Button>
+      </th>
+      <th> 
+        <input type="checkbox" class="btn-check" id="btn-check-123" checked autocomplete="off">
+        <label class="btn btn-primary btnCheck" for="btn-check-123">Pus Filled Pimples</label></Button>
+      </th>
+      <th> 
+        <input type="checkbox" class="btn-check" id="btn-check-124" checked autocomplete="off">
+        <label class="btn btn-primary btnCheck" for="btn-check-124">Blackheads</label></Button>
+      </th>
+    </tr>
+
+  
+
+
+    <tr>
+      <th> 
+        <input type="checkbox" class="btn-check" id="btn-check-125" checked autocomplete="off">
+        <label class="btn btn-primary btnCheck" for="btn-check-125">Scurring</label></Button>
+      </th>
+      <th> 
+        <input type="checkbox" class="btn-check" id="btn-check-126" checked autocomplete="off">
+        <label class="btn btn-primary btnCheck" for="btn-check-126">Skin peeling</label></Button>
+      </th>
+      <th> 
+        <input type="checkbox" class="btn-check" id="btn-check-127" checked autocomplete="off">
+        <label class="btn btn-primary btnCheck" for="btn-check-127">Silver Like Dusting </label></Button>
+      </th>
+      <th> 
+        <input type="checkbox" class="btn-check" id="btn-check-128" checked autocomplete="off">
+        <label class="btn btn-primary btnCheck" for="btn-check-128">Small Dents in Nails</label></Button>
+      </th>
+    </tr>
+
+  
+    <tr>
+      <th> 
+        <input type="checkbox" class="" id="btn-check-129" checked autocomplete="off">
+        <label class="btn btn-primary btnCheck" for="btn-check-129">Inflammatory Nails</label></Button>
+      </th>
+      <th> 
+        <input type="checkbox" class="btn-check" id="btn-check-130" checked autocomplete="off">
+        <label class="btn btn-primary btnCheck" for="btn-check-130">Blisters</label></Button>
+      </th>
+      <th> 
+        <input type="checkbox" class="btn-check" id="btn-check-131" checked autocomplete="off">
+        <label class="btn btn-primary btnCheck" for="btn-check-131">Red Sore Around Nose</label></Button>
+      </th>
+      <th> 
+        <input type="checkbox" class="btn-check" id="btn-check-132" checked autocomplete="off">
+        <label class="btn btn-primary btnCheck" for="btn-check-132">Yellow Crust Ooze </label></Button>
+      </th>
+    </tr>
+
+  
+
+  </table>
+
+  <div class="text-center">
+<input id="submit" type="button" value="Submit" class="btn btn-outline-success btn-lg" style="margin-top:40px;">
+</div>
+
+<h3 class="report" id="report" align="center"></h3>
+
+<table class="rep table table table-bordered" id ="reportTable">
+  <tr>
+    <th id="nmLabel"></th>
+    <th id="nm"></th>
+  </tr>
+  <tr>
+    <th id="ageLabel"></th>
+    <th id="ag"></th>
+  </tr>
+  <tr>
+    <th id="gdLabel"></th>
+    <th id="gd"></th>
+  </tr>
+  <tr>
+    <th id="SympLabel"></th>
+    <th id="syp"></th>
+  </tr>
+
+  <tr>
+    <th id="DiseaseLabel"></th>
+    <th id="result"></th>
+  </tr>
+
+
+</table>
+
+
+
+
+
+<h5 align='center' margin-top="10px" id="better"></h5>
+<br>
+
+<!-- Stylish Assessment Context & Action Card (Displayed After Diagnosis) -->
+<div id="assessment-summary-card" class="container mb-5 d-none">
+    <div class="card shadow-sm border-0">
+        <div class="card-header bg-primary text-white py-3">
+            <h5 class="mb-0 font-weight-bold">
+                <i class="fas fa-notes-medical mr-2"></i> Diagnosis & Contextual Assessment Summary
+            </h5>
+        </div>
+        <div class="card-body p-4">
+            <!-- Emergency Red-Flag Warning Banner -->
+            <div id="summary-red-flag-banner" class="alert alert-danger border-danger shadow-sm d-none mb-3">
+                <div class="d-flex align-items-center">
+                    <i class="fas fa-ambulance fa-2x text-danger mr-3"></i>
+                    <div>
+                        <strong class="d-block text-danger font-weight-bold mb-1">EMERGENCY RED-FLAG ADVISORY</strong>
+                        <span id="summary-red-flag-text"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Low Diagnostic Confidence Warning Banner (<60%) -->
+            <div id="summary-low-confidence-banner" class="alert alert-warning border-warning shadow-sm d-none mb-3">
+                <div class="d-flex align-items-center">
+                    <i class="fas fa-exclamation-triangle fa-2x text-warning mr-3"></i>
+                    <div>
+                        <strong class="d-block text-dark font-weight-bold mb-1">Low Model Confidence Advisory (&lt; 60%)</strong>
+                        <span id="summary-low-confidence-text"></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row align-items-center mb-3">
+                <div class="col-md-7">
+                    <span class="text-muted small">Primary Diagnostic Prediction:</span>
+                    <h3 class="font-weight-bold text-primary mt-1" id="summary-disease-name">Disease Name</h3>
+                    <div id="summary-symptoms-pills" class="mt-2"></div>
+                </div>
+                <div class="col-md-5 text-md-right mt-3 mt-md-0" id="summary-followup-badges">
+                    <!-- Populated with severity & progression badges -->
+                </div>
+            </div>
+
+            <!-- About This Prediction Section -->
+            <div id="about-prediction-card" class="card border bg-white p-4 mb-3 shadow-sm rounded">
+                <h5 class="font-weight-bold text-dark mb-3">
+                    <i class="fas fa-info-circle text-primary mr-2"></i> About This Prediction
+                </h5>
+                <div class="mb-2">
+                    <strong class="text-secondary">Predicted condition:</strong>
+                    <span class="font-weight-bold text-primary ml-1" id="about-predicted-condition"></span>
+                </div>
+                <div class="mb-2">
+                    <strong class="text-secondary">Selected symptoms:</strong>
+                    <span class="text-dark ml-1" id="about-selected-symptoms"></span>
+                </div>
+                <div class="mb-2">
+                    <strong class="text-secondary">Explanation:</strong>
+                    <span class="text-muted ml-1" id="about-explanation">The model generated this prediction by evaluating the submitted symptom pattern against patterns in its training data.</span>
+                </div>
+                <div class="alert alert-light border mt-3 mb-0 small text-muted">
+                    <strong>Disclaimer:</strong> This result is for informational and educational purposes only. It cannot confirm or rule out a medical condition. Consult a qualified healthcare professional for medical advice.
+                </div>
+                <div id="about-alternatives-container" class="mt-3 pt-2 border-top small text-muted d-none">
+                    <strong>Alternative model considerations:</strong> <span id="about-alternatives-text"></span>
+                </div>
+            </div>
+
+            <!-- Follow-up Details Box -->
+            <div id="summary-followup-details" class="card bg-light border-0 p-3 mb-3 d-none">
+                <h6 class="font-weight-bold text-dark mb-2">
+                    <i class="fas fa-clipboard-check text-primary mr-1"></i> Follow-Up Assessment Context
+                </h6>
+                <div class="row small" id="summary-followup-grid">
+                    <!-- Populated dynamically -->
+                </div>
+            </div>
+
+            <!-- Disclaimer -->
+            <div class="medical-disclaimer py-2 px-3 small mb-3">
+                <i class="fas fa-exclamation-triangle mr-1"></i>
+                Follow-up answers and XAI feature attributions provide personal context for self-tracking and do not alter clinical diagnoses.
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center pt-2 border-top">
+                <button type="button" class="btn btn-outline-secondary" onclick="location.reload();">
+                    <i class="fas fa-redo mr-1"></i> Start New Assessment
+                </button>
+                <div>
+                    <a href="#" class="btn btn-danger mr-2 d-none" id="btn-download-pdf" target="_blank">
+                        <i class="fas fa-file-pdf mr-1"></i> Download PDF Report
+                    </a>
+                    <a href="/history" class="btn btn-outline-primary mr-2">
+                        <i class="fas fa-history mr-1"></i> View in History
+                    </a>
+                    <a href="/timeline" class="btn btn-primary" id="btn-goto-timeline">
+                        <i class="fas fa-chart-line mr-1"></i> Track in Symptom Timeline
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Smart Follow-Up Modal -->
+<div class="modal fade" id="followUpModal" tabindex="-1" role="dialog" aria-labelledby="followUpModalLabel" aria-hidden="true" data-backdrop="static">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable" role="document">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title font-weight-bold" id="followUpModalLabel">
+                    <i class="fas fa-question-circle mr-2"></i> Smart Follow-Up Questions
+                </h5>
+                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close" id="btn-close-modal-x">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="alert alert-info py-2 px-3 small mb-3">
+                    <i class="fas fa-info-circle mr-1"></i>
+                    To help track your condition over time, please answer these brief questions based on your selected symptoms. <strong>All questions are optional</strong> and kept separate from model diagnosis.
+                </div>
+
+                <div class="mb-3">
+                    <span class="small font-weight-bold text-muted d-block mb-1">Selected Symptoms for Evaluation:</span>
+                    <div id="modal-selected-pills" class="d-flex flex-wrap gap-1"></div>
+                </div>
+
+                <hr>
+
+                <!-- Questions Container -->
+                <div id="followup-questions-container">
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status"></div>
+                        <p class="text-muted mt-2">Loading relevant questions...</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer bg-light d-flex justify-content-between">
+                <button type="button" class="btn btn-outline-secondary" id="btn-skip-followup">
+                    <i class="fas fa-forward mr-1"></i> Skip & Diagnose Directly
+                </button>
+                <button type="button" class="btn btn-primary px-4" id="btn-submit-followup">
+                    <i class="fas fa-check mr-1"></i> Submit Details & Diagnose
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+$(document).ready(function() {
+
+    // Uncheck all checkboxes on load
+    var inputElems = document.getElementsByTagName("input");
+    for (var i=0; i<inputElems.length; i++) {
+        if(inputElems[i].type=="checkbox"){
+            inputElems[i].checked=false;
+        }
+    }
+
+    const list = [];
+    var symp = ['Itching',
+ 'Skin rash',
+ 'Nodal skin eruptions',
+ 'Continuous sneezing',
+ 'Shivering',
+ 'Chills',
+ 'Joint pain',
+ 'Stomach pain',
+ 'Acidity',
+ 'Ulcers on tongue',
+ 'Muscle wasting',
+ 'Vomiting',
+ 'Burning micturition',
+ 'Spotting  urination',
+ 'Fatigue',
+ 'Weight gain',
+ 'Anxiety',
+ 'Cold hands and feets',
+ 'Mood swings',
+ 'Weight loss',
+ 'Restlessness',
+ 'Lethargy',
+ 'Patches in throat',
+ 'Irregular sugar level',
+ 'Cough',
+ 'High fever',
+ 'Sunken eyes',
+ 'Breathlessness',
+ 'Sweating',
+ 'Dehydration',
+ 'Indigestion',
+ 'Headache',
+ 'Yellowish skin',
+ 'Dark urine',
+ 'Nausea',
+ 'Loss of appetite',
+ 'Pain behind the eyes',
+ 'Back pain',
+ 'Constipation',
+ 'Abdominal pain',
+ 'Diarrhoea',
+ 'Mild fever',
+ 'Yellow urine',
+ 'Yellowing of eyes',
+ 'Acute liver failure',
+ 'Fluid overload',
+ 'Swelling of stomach',
+ 'Swelled lymph nodes',
+ 'Malaise',
+ 'Blurred and distorted vision',
+ 'Phlegm',
+ 'Throat irritation',
+ 'Redness of eyes',
+ 'Sinus pressure',
+ 'Runny nose',
+ 'Congestion',
+ 'Chest pain',
+ 'Weakness in limbs',
+ 'Fast heart rate',
+ 'Pain during bowel movements',
+ 'Pain in anal region',
+ 'Bloody stool',
+ 'Irritation in anus',
+ 'Neck pain',
+ 'Dizziness',
+ 'Cramps',
+ 'Bruising',
+ 'Obesity',
+ 'Swollen legs',
+ 'Swollen blood vessels',
+ 'Puffy face and eyes',
+ 'Enlarged thyroid',
+ 'Brittle nails',
+ 'Swollen extremeties',
+ 'Excessive hunger',
+ 'Extra marital contacts',
+ 'Drying and tingling lips',
+ 'Slurred speech',
+ 'Knee pain',
+ 'Hip joint pain',
+ 'Muscle weakness',
+ 'Stiff neck',
+ 'Swelling joints',
+ 'Movement stiffness',
+ 'Spinning movements',
+ 'Loss of balance',
+ 'Unsteadiness',
+ 'Weakness of one body side',
+ 'Loss of smell',
+ 'Bladder discomfort',
+ 'Foul smell of urine',
+ 'Continuous feel of urine',
+ 'Passage of gases',
+ 'Internal itching',
+ 'Toxic look (typhos)',
+ 'Depression',
+ 'Irritability',
+ 'Muscle pain',
+ 'Altered sensorium',
+ 'Red spots over body',
+ 'Belly pain',
+ 'Abnormal menstruation',
+ 'Dischromic  patches',
+ 'Watering from eyes',
+ 'Increased appetite',
+ 'Polyuria',
+ 'Family history',
+ 'Mucoid sputum',
+ 'Rusty sputum',
+ 'Lack of concentration',
+ 'Visual disturbances',
+ 'Receiving blood transfusion',
+ 'Receiving unsterile injections',
+ 'Coma',
+ 'Stomach bleeding',
+ 'Distention of abdomen',
+ 'History of alcohol consumption',
+ 'Fluid overload.1',
+ 'Blood in sputum',
+ 'Prominent veins on calf',
+ 'Palpitations',
+ 'Painful walking',
+ 'Pus filled pimples',
+ 'Blackheads',
+ 'Scurring',
+ 'Skin peeling',
+ 'Silver like dusting',
+ 'Small dents in nails',
+ 'Inflammatory nails',
+ 'Blister',
+ 'Red sore around nose',
+ 'Yellow crust ooze',
+ 'Prognosis'];
+
+    // Update live selected symptoms counter
+    function updateSelectedCounter() {
+        var count = 0;
+        for (var k = 0; k < 132; k++) {
+            var cb = document.getElementById('btn-check-' + (k + 1));
+            if (cb && cb.checked) count++;
+        }
+        var badge = $('#selected-counter');
+        if (count === 0) {
+            badge.removeClass('badge-success text-white').addClass('badge-warning text-dark')
+                 .html('<i class="fas fa-info-circle mr-1"></i> <span id="selected-count-number">0</span> symptoms selected (Select at least 1 symptom)');
+        } else {
+            badge.removeClass('badge-warning text-dark').addClass('badge-success text-white')
+                 .html('<i class="fas fa-check-circle mr-1"></i> <span id="selected-count-number">' + count + '</span> symptoms selected (Ready to evaluate)');
+        }
+    }
+
+    $('input.btn-check').on('change', updateSelectedCounter);
+
+    // Quick Search among 132 symptoms
+    $('#symptom-quick-search').on('input', function() {
+        var query = $(this).val().toLowerCase().trim();
+        $('table.t1 th').each(function() {
+            var label = $(this).find('label.btnCheck').text().toLowerCase();
+            if (!query) {
+                $(this).css('opacity', '1').find('label.btnCheck').removeClass('btn-warning').addClass('btn-primary');
+            } else if (label.indexOf(query) !== -1) {
+                $(this).css('opacity', '1').find('label.btnCheck').removeClass('btn-primary').addClass('btn-warning');
+            } else {
+                $(this).css('opacity', '0.35').find('label.btnCheck').removeClass('btn-warning').addClass('btn-primary');
+            }
+        });
+    });
+
+    var currentSelectedSymptoms = [];
+
+    // Main Submit button click: launches Smart Follow-Up
+    $('#submit').click(function() {
+        var name = document.getElementById('name').value;
+        var age = document.getElementById('age').value;
+        var gender = document.getElementById('gender').value;
+
+        // Build list and selected_symp accurately by checking all 132 checkboxes
+        currentSelectedSymptoms = [];
+        for (var k = 0; k < 132; k++) {
+            var cb = document.getElementById('btn-check-' + (k + 1));
+            if (cb && cb.checked) {
+                list[k] = 1;
+                currentSelectedSymptoms.push(symp[k]);
+            } else {
+                list[k] = 0;
+            }
+        }
+
+        // Require at least 1 symptom to proceed
+        if (currentSelectedSymptoms.length === 0) {
+            alert('Please select at least 1 symptom before submitting for evaluation.');
+            return;
+        }
+
+        // Render selected symptom pills in modal
+        var pillsHtml = currentSelectedSymptoms.map(function(s) {
+            return '<span class="symptom-tag bg-light text-dark border px-2 py-1">' + s + '</span>';
+        }).join(' ');
+        $('#modal-selected-pills').html(pillsHtml);
+
+        // Fetch tailored follow-up questions from backend
+        $('#followup-questions-container').html('<div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div><p class="text-muted mt-2">Loading relevant follow-up questions...</p></div>');
+        $('#followUpModal').modal('show');
+
+        $.ajax({
+            method: 'POST',
+            url: '/api/followup/questions',
+            contentType: 'application/json',
+            data: JSON.stringify({ symptoms: currentSelectedSymptoms }),
+            success: function(resp) {
+                if (resp.status === 'success' && resp.data && resp.data.questions) {
+                    renderFollowUpQuestions(resp.data.questions);
+                } else {
+                    renderDefaultQuestions();
+                }
+            },
+            error: function() {
+                // Fallback to default questions if network error
+                renderDefaultQuestions();
+            }
+        });
+    });
+
+    function renderFollowUpQuestions(questions) {
+        var container = $('#followup-questions-container');
+        var html = '';
+
+        questions.forEach(function(q) {
+            html += '<div class="followup-card mb-3 p-3 bg-light rounded border">';
+            html += '<div class="followup-question-title font-weight-bold text-dark mb-1">' + q.question + '</div>';
+            if (q.help_text) {
+                html += '<div class="followup-help-text small text-muted mb-2">' + q.help_text + '</div>';
+            }
+
+            if (q.type === 'per_symptom_severity') {
+                html += '<div class="per-symptom-severity-list mt-2">';
+                q.symptoms.forEach(function(s) {
+                    var sKey = s.key;
+                    var sLabel = s.label;
+                    html += '<div class="symptom-severity-card card mb-2 p-3 bg-white border shadow-sm">';
+                    html += '  <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center">';
+                    html += '    <div class="font-weight-bold text-dark mb-2 mb-md-0"><i class="fas fa-stethoscope text-primary mr-1"></i> ' + sLabel + '</div>';
+                    html += '    <div class="severity-options-group d-flex flex-wrap">';
+
+                    q.options.forEach(function(opt) {
+                        var optVal = opt.value;
+                        var optLabel = opt.label;
+                        var radioId = 'sev_' + sKey + '_' + optVal;
+                        var isChecked = optVal === 3 ? ' checked' : '';
+                        html += '      <div class="custom-control custom-radio custom-control-inline mr-3 my-1">';
+                        html += '        <input type="radio" id="' + radioId + '" name="symptom_severity_' + sKey + '" value="' + optVal + '" data-symptom="' + s.name + '" class="custom-control-input per-symp-sev-input"' + isChecked + '>';
+                        html += '        <label class="custom-control-label small cursor-pointer" for="' + radioId + '">' + optLabel + '</label>';
+                        html += '      </div>';
+                    });
+
+                    html += '    </div>';
+                    html += '  </div>';
+                    html += '</div>';
+                });
+                html += '</div>';
+            } else if (q.type === 'rating') {
+                html += '<div class="rating-pill-group d-flex flex-wrap">';
+                q.options.forEach(function(opt) {
+                    var val = opt.value;
+                    var label = opt.label;
+                    var optId = 'q_' + q.id + '_' + val;
+                    var isChecked = val === 3 ? ' checked' : '';
+                    html += '<div class="custom-control custom-radio custom-control-inline mr-3 mb-1">';
+                    html += '<input type="radio" id="' + optId + '" name="' + q.id + '" value="' + val + '" class="custom-control-input"' + isChecked + '>';
+                    html += '<label class="custom-control-label small" for="' + optId + '">' + label + '</label>';
+                    html += '</div>';
+                });
+                html += '</div>';
+            } else if (q.type === 'select') {
+                html += '<select class="form-control form-control-sm" name="' + q.id + '">';
+                html += '<option value="">-- Optional: Select an answer --</option>';
+                q.options.forEach(function(opt) {
+                    html += '<option value="' + opt + '">' + opt + '</option>';
+                });
+                html += '</select>';
+            }
+            html += '</div>';
+        });
+
+        container.html(html);
+    }
+
+    function renderDefaultQuestions() {
+        var fallbackQuestions = [
+            { id: 'duration', type: 'select', question: 'When did your symptoms begin?', options: ['Less than 24 hours (Acute)', '1 to 3 days', '4 to 7 days', '1 to 2 weeks', 'More than 2 weeks (Chronic)'] },
+            {
+                id: 'symptom_severities',
+                type: 'per_symptom_severity',
+                question: 'Please select severity for each reported symptom:',
+                help_text: 'Track each symptom individually with available severity levels.',
+                symptoms: currentSelectedSymptoms.map(function(s) {
+                    return { name: s, key: s.toLowerCase().replace(/ /g, '_'), label: s };
+                }),
+                options: [
+                    { value: 1, label: '1 - Very Mild' },
+                    { value: 2, label: '2 - Mild' },
+                    { value: 3, label: '3 - Moderate' },
+                    { value: 4, label: '4 - Severe' },
+                    { value: 5, label: '5 - Very Severe' }
+                ]
+            },
+            { id: 'frequency', type: 'select', question: 'How frequently do your symptoms occur?', options: ['Occasional', 'Intermittent', 'Frequent', 'Continuous'] },
+            { id: 'progression', type: 'select', question: 'How has the intensity changed?', options: ['Improving', 'Unchanged', 'Gradually worsening', 'Rapidly worsening'] }
+        ];
+        renderFollowUpQuestions(fallbackQuestions);
+    }
+
+    // Modal Action: Submit with Answers
+    $('#btn-submit-followup').click(function() {
+        var followUpAnswers = {};
+        var symptomSeverities = {};
+        var sevSum = 0;
+        var sevCount = 0;
+
+        // Collect per-symptom severities
+        $('.per-symp-sev-input:checked').each(function() {
+            var sympName = $(this).data('symptom');
+            var val = parseInt($(this).val()) || 3;
+            if (sympName) {
+                symptomSeverities[sympName] = val;
+                sevSum += val;
+                sevCount++;
+            }
+        });
+
+        if (sevCount > 0) {
+            followUpAnswers['symptom_severities'] = symptomSeverities;
+            followUpAnswers['severity'] = Math.round(sevSum / sevCount);
+        }
+
+        // Collect other questions (duration, progression, category questions)
+        $('#followup-questions-container').find('select, input[type="radio"]:not(.per-symp-sev-input):checked').each(function() {
+            var name = $(this).attr('name');
+            var val = $(this).val();
+            if (name && val) {
+                followUpAnswers[name] = val;
+            }
+        });
+
+        $('#followUpModal').modal('hide');
+        executeDiagnosis(followUpAnswers);
+    });
+
+    // Modal Action: Skip Follow-Up Questions (assigns default Moderate for each symptom)
+    $('#btn-skip-followup').click(function() {
+        $('#followUpModal').modal('hide');
+        var defaultSeverities = {};
+        currentSelectedSymptoms.forEach(function(s) {
+            defaultSeverities[s] = 3;
+        });
+        executeDiagnosis({
+            severity: 3,
+            symptom_severities: defaultSeverities
+        });
+    });
+
+    $('#btn-close-modal-x').click(function() {
+        $('#followUpModal').modal('hide');
+    });
+
+    // Execute Diagnosis & Save Assessment History
+    function executeDiagnosis(followUpAnswers) {
+        var name = document.getElementById('name').value;
+        var age = document.getElementById('age').value;
+        var gender = document.getElementById('gender').value;
+
+        $("#result").html('Evaluating symptoms with diagnostic model...');
+        var insert = list.toString();
+        var insert_string = 'checkboxvalue=' + encodeURIComponent(insert) + '&allow_sparse=1';
+
+        $.ajax({
+            method: "POST",
+            url: "/diagnose",
+            data: insert_string,
+            cache: false,
+            success: function(resp) {
+                var isObj = (typeof resp === 'object' && resp !== null);
+                var primaryDisease = isObj ? (resp.predicted_disease || 'Undetermined') : resp;
+                var top3 = (isObj && resp.top_3_diseases) ? resp.top_3_diseases : [{ disease: primaryDisease, probability: 100.0 }];
+                var isLowConf = isObj ? Boolean(resp.low_confidence) : false;
+                var lowConfMsg = isObj ? resp.low_confidence_warning : null;
+                var hasRedFlag = isObj ? Boolean(resp.has_red_flag) : false;
+                var redFlagMsg = isObj ? resp.red_flag_note : null;
+
+                $('#report').html('Diagnostic Assessment Report');
+                var tbl = document.getElementById('reportTable').style;
+                tbl.display = 'table';
+                tbl.className = 'table table-bordered shadow-sm bg-white';
+
+                $('#nmLabel').html("Patient Name");
+                $('#nm').html(name || 'Anonymous');
+                $('#ageLabel').html("Age");
+                $('#ag').html(age || 'N/A');
+                $('#gdLabel').html("Gender");
+                $('#gd').html(gender || 'N/A');
+                $('#SympLabel').html("Reported Symptoms (" + currentSelectedSymptoms.length + ")");
+
+                // Render reported symptoms with individual severity tags
+                var sevLabels = {1:'Very Mild', 2:'Mild', 3:'Moderate', 4:'Severe', 5:'Very Severe'};
+                var sympDisplayHtml = currentSelectedSymptoms.map(function(s) {
+                    var sevNum = (followUpAnswers && followUpAnswers.symptom_severities) ? followUpAnswers.symptom_severities[s] : null;
+                    var badge = '';
+                    if (sevNum) {
+                        var bClass = sevNum <= 2 ? 'badge-info' : (sevNum === 3 ? 'badge-primary' : 'badge-danger');
+                        badge = ' <span class="badge ' + bClass + '">' + (sevLabels[sevNum] || ('Severity ' + sevNum + '/5')) + '</span>';
+                    }
+                    return '<span class="mr-2 mb-1 d-inline-block"><strong>' + s + '</strong>' + badge + '</span>';
+                }).join(' ');
+                $('#syp').html(sympDisplayHtml);
+
+                $('#DiseaseLabel').html("Predicted Condition");
+                var predHtml = '<div class="h4 font-weight-bold text-primary mb-2">' + primaryDisease + '</div>';
+                var altDiseases = [];
+                if (resp && resp.alternative_conditions && resp.alternative_conditions.length > 0) {
+                    altDiseases = resp.alternative_conditions;
+                } else if (top3 && top3.length > 1) {
+                    altDiseases = top3.slice(1).map(function(t) { return t.disease; }).filter(function(d) { return d !== primaryDisease; });
+                }
+                if (altDiseases.length > 0) {
+                    predHtml += '<div class="small text-muted mt-2"><strong>Alternative considerations:</strong> ' + altDiseases.join(', ') + '</div>';
+                }
+                $('#result').html(predHtml);
+
+                // Build warning notices (Red Flag & Low Confidence)
+                var alertNotesHtml = '';
+                if (hasRedFlag && redFlagMsg) {
+                    alertNotesHtml += '<div class="alert alert-danger border-danger shadow-sm my-3 text-left"><i class="fas fa-ambulance fa-lg mr-2"></i><strong>' + redFlagMsg + '</strong></div>';
+                }
+                if (isLowConf && lowConfMsg) {
+                    alertNotesHtml += '<div class="alert alert-warning border-warning shadow-sm my-3 text-left"><i class="fas fa-exclamation-circle fa-lg mr-2"></i><strong>' + lowConfMsg + '</strong></div>';
+                }
+                $("#better").html(alertNotesHtml || '<span class="text-success font-weight-bold"><i class="fas fa-check-circle mr-1"></i> We hope you get well soon!</span>');
+
+                // Save assessment to SQLite database for History, Timeline, and XAI
+                $.ajax({
+                    method: "POST",
+                    url: "/api/assessment/save",
+                    contentType: "application/json",
+                    data: JSON.stringify({
+                        name: name,
+                        age: age,
+                        gender: gender,
+                        symptoms: currentSelectedSymptoms,
+                        symptom_vector: list,
+                        predicted_disease: primaryDisease,
+                        top_3_diseases: top3,
+                        low_confidence_warning: lowConfMsg,
+                        red_flag_note: redFlagMsg,
+                        symptom_severities: followUpAnswers.symptom_severities || {},
+                        follow_up: followUpAnswers
+                    }),
+                    success: function(saveResp) {
+                        var asmtId = (saveResp && saveResp.assessment) ? saveResp.assessment.id : null;
+                        var xai = (saveResp && saveResp.explainability) ? saveResp.explainability : null;
+                        displaySummaryCard(primaryDisease, currentSelectedSymptoms, followUpAnswers, asmtId, xai, top3, isLowConf, lowConfMsg, hasRedFlag, redFlagMsg);
+                    },
+                    error: function() {
+                        displaySummaryCard(primaryDisease, currentSelectedSymptoms, followUpAnswers, null, null, top3, isLowConf, lowConfMsg, hasRedFlag, redFlagMsg);
+                    }
+                });
+            },
+            error: function(xhr) {
+                var errMsg = "Failed to run diagnostic evaluation.";
+                if (xhr && xhr.responseJSON && xhr.responseJSON.message) {
+                    errMsg = xhr.responseJSON.message;
+                }
+                alert(errMsg);
+                $("#result").html('<span class="text-danger font-weight-bold">' + errMsg + '</span>');
+            }
+        });
+    }
+
+    function displaySummaryCard(disease, symptoms, followUp, asmtId, xai, top3, isLowConf, lowConfMsg, hasRedFlag, redFlagMsg) {
+        $('#summary-disease-name').text(disease);
+
+        // Emergency Red-Flag banner
+        if (hasRedFlag && redFlagMsg) {
+            $('#summary-red-flag-text').text(redFlagMsg);
+            $('#summary-red-flag-banner').removeClass('d-none');
+        } else {
+            $('#summary-red-flag-banner').addClass('d-none');
+        }
+
+        // Low confidence banner
+        if (isLowConf && lowConfMsg) {
+            $('#summary-low-confidence-text').text(lowConfMsg);
+            $('#summary-low-confidence-banner').removeClass('d-none');
+        } else {
+            $('#summary-low-confidence-banner').addClass('d-none');
+        }
+
+        // Reported symptoms pills with individual severities
+        var sevMap = (followUp && followUp.symptom_severities) ? followUp.symptom_severities : {};
+        var sevTextLabels = {1:'Very Mild', 2:'Mild', 3:'Moderate', 4:'Severe', 5:'Very Severe'};
+        var pillsHtml = symptoms.slice(0, 10).map(function(s) {
+            var sevVal = sevMap[s];
+            var sevStr = sevVal ? (' [' + (sevTextLabels[sevVal] || ('Sev ' + sevVal + '/5')) + ']') : '';
+            return '<span class="symptom-tag bg-light text-dark border">' + s + '<b>' + sevStr + '</b></span>';
+        }).join(' ');
+        if (symptoms.length > 10) {
+            pillsHtml += '<span class="badge badge-secondary ml-1">+' + (symptoms.length - 10) + ' more</span>';
+        }
+        $('#summary-symptoms-pills').html(pillsHtml);
+
+        // Badges in header
+        var badgesHtml = '';
+        if (followUp && followUp.severity) {
+            var sevNum = parseInt(String(followUp.severity).charAt(0)) || 3;
+            badgesHtml += '<span class="severity-badge severity-' + sevNum + ' mr-1"><i class="fas fa-tachometer-alt"></i> Avg Severity ' + sevNum + '/5</span>';
+        }
+        if (followUp && followUp.progression) {
+            var progClass = followUp.progression.toLowerCase().indexOf('improving') !== -1 ? 'status-improving' :
+                            followUp.progression.toLowerCase().indexOf('worsening') !== -1 ? 'status-worsening' : 'status-unchanged';
+            badgesHtml += '<span class="status-badge ' + progClass + '"><i class="fas fa-chart-line"></i> ' + followUp.progression + '</span>';
+        }
+        $('#summary-followup-badges').html(badgesHtml);
+
+        // About This Prediction Section
+        $('#about-predicted-condition').text(disease);
+        $('#about-selected-symptoms').text(symptoms && symptoms.length > 0 ? symptoms.join(', ') : 'None selected');
+        $('#about-explanation').text('The model generated this prediction by evaluating the submitted symptom pattern against patterns in its training data.');
+
+        var alts = (xai && xai.alternative_conditions) ? xai.alternative_conditions : [];
+        if (!alts || alts.length === 0) {
+            if (top3 && top3.length > 1) {
+                alts = top3.slice(1).map(function(t) { return t.disease; }).filter(function(d) { return d !== disease; });
+            }
+        }
+        if (alts && alts.length > 0) {
+            $('#about-alternatives-text').text(alts.join(', '));
+            $('#about-alternatives-container').removeClass('d-none');
+        } else {
+            $('#about-alternatives-container').addClass('d-none');
+        }
+        $('#about-prediction-card').removeClass('d-none');
+
+        // PDF Download button
+        if (asmtId) {
+            $('#btn-download-pdf').attr('href', '/api/assessment/' + encodeURIComponent(asmtId) + '/pdf').removeClass('d-none');
+        } else {
+            $('#btn-download-pdf').addClass('d-none');
+        }
+
+        // Follow-up grid details
+        if (followUp && Object.keys(followUp).length > 0) {
+            var gridHtml = '';
+            for (var k in followUp) {
+                if (k === 'symptom_severities') {
+                    var sevObj = followUp[k];
+                    var sevListStr = Object.keys(sevObj).map(function(sn){ return sn + ': ' + (sevTextLabels[sevObj[sn]] || sevObj[sn]); }).join(', ');
+                    gridHtml += '<div class="col-12 mb-1"><strong>Individual Symptom Severities:</strong> ' + sevListStr + '</div>';
+                } else if (k !== 'top_3_diseases' && k !== 'low_confidence_warning' && k !== 'red_flag_note') {
+                    var label = k.replace(/_/g, ' ').replace(/\b\w/g, function(l){ return l.toUpperCase(); });
+                    gridHtml += '<div class="col-sm-6 mb-1"><strong>' + label + ':</strong> ' + followUp[k] + '</div>';
+                }
+            }
+            $('#summary-followup-grid').html(gridHtml);
+            $('#summary-followup-details').removeClass('d-none');
+        } else {
+            $('#summary-followup-details').addClass('d-none');
+        }
+
+        // Timeline link
+        if (asmtId) {
+            $('#btn-goto-timeline').attr('href', '/timeline?assessment=' + encodeURIComponent(asmtId));
+        } else {
+            $('#btn-goto-timeline').attr('href', '/timeline');
+        }
+
+        $('#assessment-summary-card').removeClass('d-none');
+
+        // Smooth scroll to results
+        $('html, body').animate({
+            scrollTop: $("#report").offset().top - 40
+        }, 500);
+    }
+
+});
+</script>
+
+</body>
+</html>
