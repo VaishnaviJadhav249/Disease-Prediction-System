@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='stylesheets/style.css') }}">
+    {% include '_archive_head.html' %}
     <style>
         .profile-card {
             border-radius: 12px;
@@ -52,64 +53,16 @@
         }
     </style>
 </head>
-<body class="bg-light">
+<body class="archive">
 
-    <!-- Top Navigation Bar -->
-    <nav class="navbar navbar-expand-lg modern-navbar sticky-top">
-        <div class="container">
-            <a class="navbar-brand text-white font-weight-bold" href="/">
-                <i class="fas fa-heartbeat me-2"></i> HealthDiagnose
-            </a>
-            <button class="navbar-toggler text-white" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu" aria-controls="navMenu" aria-expanded="false" aria-label="Toggle navigation">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navMenu">
-                <ul class="navbar-nav ms-auto align-items-center">
-                    <li class="nav-item">
-                        <a class="nav-link" href="/"><i class="fas fa-stethoscope me-1"></i> Diagnose</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/survey"><i class="fas fa-clipboard-check me-1"></i> Take a Survey</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/history"><i class="fas fa-history me-1"></i> Assessment History</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/timeline"><i class="fas fa-chart-line me-1"></i> Symptom Timeline</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link active" href="/profile"><i class="fas fa-user-circle me-1"></i> Profile</a>
-                    </li>
-                    {% if current_user %}
-                    <li class="nav-item ms-2">
-                        <a class="nav-link text-warning" href="/logout"><i class="fas fa-sign-out-alt me-1"></i> Sign Out</a>
-                    </li>
-                    {% else %}
-                    <li class="nav-item ms-2">
-                        <a class="nav-link text-white" href="/login"><i class="fas fa-sign-in-alt me-1"></i> Sign In</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="btn btn-sm btn-outline-light ms-2 py-1 px-3" href="/register">Register</a>
-                    </li>
-                    {% endif %}
-                </ul>
-            </div>
-        </div>
-    </nav>
+    {% set active = 'profile' %}
+{% set page_title = 'Profile' %}
+{% set page_lede = 'Your account details and activity summary.' %}
+{% include '_archive_top.html' %}
 
     <!-- Main Container -->
     <div class="container py-4">
         <!-- Flashed Alerts -->
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                <div class="alert alert-{{ category if category != 'error' else 'danger' }} alert-dismissible fade show shadow-sm" role="alert">
-                    <i class="fas fa-info-circle me-2"></i> {{ message }}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                </div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
 
         <div class="row justify-content-center">
             <div class="col-lg-8">
@@ -158,6 +111,28 @@
                             </div>
 
                             <div class="col-md-6">
+                                <div class="info-label">Age</div>
+                                <div class="info-value">
+                                    {% if user.age %}
+                                        {{ user.age }} years old
+                                    {% else %}
+                                        <span class="text-muted fst-italic">Not specified</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="info-label">Gender</div>
+                                <div class="info-value">
+                                    {% if user.gender %}
+                                        {{ user.gender }}
+                                    {% else %}
+                                        <span class="text-muted fst-italic">Not specified</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
                                 <div class="info-label">Email Address</div>
                                 <div class="info-value">
                                     {% if user.email %}
@@ -189,7 +164,6 @@
                                 <div class="stat-card">
                                     <div class="display-6 fw-bold text-primary">{{ assessments_count }}</div>
                                     <div class="text-muted small mt-1">Diagnostic Assessments</div>
-                                    <a href="/history" class="btn btn-sm btn-link p-0 mt-1">View History &rarr;</a>
                                 </div>
                             </div>
                             <div class="col-sm-6">
@@ -211,6 +185,21 @@
                                     <div class="mb-3">
                                         <label for="full_name" class="form-label small fw-bold text-muted">Full Name</label>
                                         <input type="text" class="form-control" id="full_name" name="full_name" value="{{ user.full_name or '' }}" placeholder="Enter your full name">
+                                    </div>
+                                    <div class="row g-2 mb-3">
+                                        <div class="col-6">
+                                            <label for="age" class="form-label small fw-bold text-muted">Age</label>
+                                            <input type="number" class="form-control" id="age" name="age" value="{{ user.age or '' }}" placeholder="e.g. 25" min="1" max="120">
+                                        </div>
+                                        <div class="col-6">
+                                            <label for="gender" class="form-label small fw-bold text-muted">Gender</label>
+                                            <select class="form-select" id="gender" name="gender">
+                                                <option value="" {% if not user.gender %}selected{% endif %}>Select</option>
+                                                <option value="Male" {% if user.gender == 'Male' %}selected{% endif %}>Male</option>
+                                                <option value="Female" {% if user.gender == 'Female' %}selected{% endif %}>Female</option>
+                                                <option value="Other" {% if user.gender == 'Other' %}selected{% endif %}>Other</option>
+                                            </select>
+                                        </div>
                                     </div>
                                     <div class="mb-3">
                                         <label for="email" class="form-label small fw-bold text-muted">Email Address</label>
@@ -246,6 +235,7 @@
     </div>
 
     <!-- Bootstrap JS Bundle -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    {% include '_archive_bottom.html' %}
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

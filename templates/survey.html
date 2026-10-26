@@ -8,57 +8,18 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="static/css/style.css">
+    {% include '_archive_head.html' %}
 </head>
-<body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-gradient-primary shadow">
-        <div class="container">
-            <a class="navbar-brand fw-bold" href="/">
-                <i class="fas fa-heartbeat me-2"></i> HealthDiagnose
-            </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto align-items-center">
-                    <li class="nav-item">
-                        <a class="nav-link" href="/"><i class="fas fa-stethoscope me-1"></i> Diagnose</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link active" href="/survey"><i class="fas fa-clipboard-check me-1"></i> Take a Survey</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/history"><i class="fas fa-history me-1"></i> Assessment History</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/timeline"><i class="fas fa-chart-line me-1"></i> Symptom Timeline</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/profile"><i class="fas fa-user-circle me-1"></i> Profile</a>
-                    </li>
-                    {% if current_user %}
-                    <li class="nav-item">
-                        <a class="nav-link text-warning" href="/logout"><i class="fas fa-sign-out-alt me-1"></i> Sign Out</a>
-                    </li>
-                    {% else %}
-                    <li class="nav-item ms-2">
-                        <a class="nav-link" href="/login"><i class="fas fa-sign-in-alt me-1"></i> Sign In</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="btn btn-sm btn-outline-light ms-1" href="/register">Register</a>
-                    </li>
-                    {% endif %}
-                </ul>
-            </div>
-        </div>
-    </nav>
+<body class="archive">
+{% set active = 'survey' %}
+{% set page_title = 'Health experience survey' %}
+{% set page_lede = '' %}
+{% include '_archive_top.html' %}
 
     <div class="container my-5">
         <div class="row justify-content-center">
             <div class="col-lg-10">
                 <div class="card shadow border-0">
-                    <div class="card-header bg-primary text-white">
-                        <h3 class="mb-0"><i class="fas fa-clipboard-list me-2"></i> Health Experience Survey</h3>
-                    </div>
                     <div class="card-body">
                         <p class="lead">Help us improve our diagnostic system by sharing your recent health experience.</p>
                         <hr>
@@ -135,23 +96,9 @@
         </div>
     </div>
 
-    <footer class="bg-dark text-white py-4">
-        <div class="container">
-            <div class="row">
-                <div class="col-md-6">
-                    <h5 class="d-flex align-items-center mb-3">
-                        <i class="fas fa-heartbeat me-2"></i> HealthDiagnose 
-                    </h5>
-                    <p class="text-muted small">Improving healthcare through ML-powered diagnostics.</p>
-                </div>
-                <div class="col-md-6 text-md-end">
-                    <p class="small text-muted mb-0">&copy; 2025 HealthDiagnose. All rights reserved.</p>
-                </div>
-            </div>
-        </div>
-    </footer>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    {% include '_archive_bottom.html' %}
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             // Full list of all symptoms

@@ -84,6 +84,16 @@ def init_db():
     except sqlite3.OperationalError:
         pass
 
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN age INTEGER")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN gender TEXT")
+    except sqlite3.OperationalError:
+        pass
+
     # Create indexes for fast querying and strict user separation
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_assessments_timestamp ON assessments (timestamp DESC)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_assessments_user ON assessments (user_id)')
@@ -98,8 +108,8 @@ def init_db():
 # USER AUTHENTICATION & ACCESS CONTROL
 # ========================================================
 
-def create_user(username, email, password):
-    """Registers a new user with securely hashed password."""
+def create_user(username, email, password, full_name=None, age=None, gender=None):
+    """Registers a new user with securely hashed password and optional profile details."""
     username = username.strip() if username else ''
     email = email.strip().lower() if email and email.strip() else None
     if not username or len(username) < 3:
@@ -121,18 +131,49 @@ def create_user(username, email, password):
             conn.close()
             raise ValueError("Email is already registered. Please sign in.")
 
+    # Validate age if provided
+    age_val = None
+    if age is not None and str(age).strip() != '':
+        try:
+            age_val = int(age)
+            if age_val < 1 or age_val > 120:
+                raise ValueError("Age must be between 1 and 120.")
+        except ValueError as ex:
+            if "between 1 and 120" in str(ex):
+                raise
+            raise ValueError("Age must be a valid number.")
+
+    gender_val = gender.strip() if gender and gender.strip() else None
+    cleaned_name = full_name.strip() if full_name and full_name.strip() else None
+
     pwd_hash = generate_password_hash(password)
     created_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
+    cursor.execute("PRAGMA table_info(users)")
+    cols = [r['name'] for r in cursor.fetchall()]
+    if 'full_name' not in cols:
+        cursor.execute("ALTER TABLE users ADD COLUMN full_name TEXT")
+    if 'age' not in cols:
+        cursor.execute("ALTER TABLE users ADD COLUMN age INTEGER")
+    if 'gender' not in cols:
+        cursor.execute("ALTER TABLE users ADD COLUMN gender TEXT")
+
     cursor.execute(
-        "INSERT INTO users (username, email, password_hash, created_at) VALUES (?, ?, ?, ?)",
-        (username, email, pwd_hash, created_at)
+        "INSERT INTO users (username, email, password_hash, created_at, full_name, age, gender) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (username, email, pwd_hash, created_at, cleaned_name, age_val, gender_val)
     )
     user_id = cursor.lastrowid
     conn.commit()
     conn.close()
 
-    return {'id': user_id, 'username': username, 'email': email}
+    return {
+        'id': user_id,
+        'username': username,
+        'email': email,
+        'full_name': cleaned_name,
+        'age': age_val,
+        'gender': gender_val
+    }
 
 def authenticate_user(username_or_email, password):
     """Authenticates a user against secure password hash."""
@@ -153,16 +194,16 @@ def authenticate_user(username_or_email, password):
         return None
 
     if check_password_hash(row['password_hash'], password):
+        row_keys = row.keys()
         user_dict = {
             'id': row['id'],
             'username': row['username'],
             'email': row['email'],
-            'created_at': row['created_at']
+            'created_at': row['created_at'],
+            'full_name': row['full_name'] if 'full_name' in row_keys else None,
+            'age': row['age'] if 'age' in row_keys else None,
+            'gender': row['gender'] if 'gender' in row_keys else None
         }
-        if 'full_name' in row.keys():
-            user_dict['full_name'] = row['full_name']
-        else:
-            user_dict['full_name'] = None
         return user_dict
     return None
 
@@ -174,10 +215,15 @@ def get_user_by_id(user_id):
     cursor = conn.cursor()
     cursor.execute("PRAGMA table_info(users)")
     cols = [r['name'] for r in cursor.fetchall()]
+    select_cols = ['id', 'username', 'email', 'created_at']
     if 'full_name' in cols:
-        cursor.execute("SELECT id, username, email, full_name, created_at FROM users WHERE id = ?", (user_id,))
-    else:
-        cursor.execute("SELECT id, username, email, created_at FROM users WHERE id = ?", (user_id,))
+        select_cols.append('full_name')
+    if 'age' in cols:
+        select_cols.append('age')
+    if 'gender' in cols:
+        select_cols.append('gender')
+    query = f"SELECT {', '.join(select_cols)} FROM users WHERE id = ?"
+    cursor.execute(query, (user_id,))
     row = cursor.fetchone()
     conn.close()
     if not row:
@@ -185,17 +231,21 @@ def get_user_by_id(user_id):
     res = dict(row)
     if 'full_name' not in res:
         res['full_name'] = None
+    if 'age' not in res:
+        res['age'] = None
+    if 'gender' not in res:
+        res['gender'] = None
     return res
 
-def update_user_profile(user_id, full_name=None, email=None):
-    """Updates user full_name and email safely with database validation."""
+def update_user_profile(user_id, full_name=None, email=None, age=None, gender=None):
+    """Updates user full_name, email, age, and gender safely with database validation."""
     if not user_id:
         raise ValueError("User ID is required.")
 
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    cursor.execute("SELECT id, email FROM users WHERE id = ?", (user_id,))
+    cursor.execute("SELECT id, email, full_name FROM users WHERE id = ?", (user_id,))
     user_row = cursor.fetchone()
     if not user_row:
         conn.close()
@@ -212,12 +262,28 @@ def update_user_profile(user_id, full_name=None, email=None):
     cols = [r['name'] for r in cursor.fetchall()]
     if 'full_name' not in cols:
         cursor.execute("ALTER TABLE users ADD COLUMN full_name TEXT")
+    if 'age' not in cols:
+        cursor.execute("ALTER TABLE users ADD COLUMN age INTEGER")
+    if 'gender' not in cols:
+        cursor.execute("ALTER TABLE users ADD COLUMN gender TEXT")
 
-    cleaned_name = full_name.strip() if full_name and full_name.strip() else None
+    cleaned_name = full_name.strip() if full_name is not None and full_name.strip() != '' else None
+    gender_val = gender.strip() if gender is not None and gender.strip() != '' else None
+
+    age_val = None
+    if age is not None and str(age).strip() != '':
+        try:
+            age_val = int(age)
+            if age_val < 1 or age_val > 120:
+                raise ValueError("Age must be between 1 and 120.")
+        except ValueError as ex:
+            if "between 1 and 120" in str(ex):
+                raise
+            raise ValueError("Age must be a valid number.")
 
     cursor.execute(
-        "UPDATE users SET full_name = ?, email = ? WHERE id = ?",
-        (cleaned_name, cleaned_email, user_id)
+        "UPDATE users SET full_name = ?, email = ?, age = ?, gender = ? WHERE id = ?",
+        (cleaned_name, cleaned_email, age_val, gender_val, user_id)
     )
     conn.commit()
     conn.close()
@@ -323,6 +389,17 @@ def save_assessment(patient_name, patient_age, patient_gender, symptoms, symptom
         )
         s_sev = parse_symptom_severity(s_sev_val, default_severity)
 
+        # Read per-symptom duration and progression if available
+        s_dur = duration
+        s_prog = progression
+        if isinstance(follow_up, dict):
+            dur_dict = follow_up.get('symptom_duration') or follow_up.get('symptom_durations') or {}
+            if isinstance(dur_dict, dict):
+                s_dur = dur_dict.get(symp) or dur_dict.get(clean_key) or dur_dict.get(symp.strip().title()) or s_dur
+            prog_dict = follow_up.get('symptom_progression') or follow_up.get('symptom_progressions') or {}
+            if isinstance(prog_dict, dict):
+                s_prog = prog_dict.get(symp) or prog_dict.get(clean_key) or prog_dict.get(symp.strip().title()) or s_prog
+
         cursor.execute('''\
             INSERT INTO timeline_entries (
                 user_id, assessment_id, symptom_name, timestamp, severity,
@@ -330,7 +407,7 @@ def save_assessment(patient_name, patient_age, patient_gender, symptoms, symptom
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             user_id, assessment_id, symp, timestamp, s_sev,
-            duration, progression, notes, created_at
+            s_dur, s_prog, notes, created_at
         ))
 
     conn.commit()

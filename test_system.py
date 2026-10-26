@@ -184,7 +184,7 @@ class TestDiseasePredictionSystem(unittest.TestCase):
         """Verifies /diagnose returns top 3 diseases with individual probability percentages."""
         symps = symptoms_data.get_symptoms_list()
         vec_3 = [1 if s in ('cough', 'high_fever', 'breathlessness') else 0 for s in symps]
-        res = self.app.post('/diagnose', data={'checkboxvalue': ','.join(map(str, vec_3))})
+        res = self.app.post('/diagnose', data={'checkboxvalue': ','.join(map(str, vec_3)), 'model': 'knn'})
         self.assertEqual(res.status_code, 200)
         data = json.loads(res.data)
 
@@ -198,21 +198,20 @@ class TestDiseasePredictionSystem(unittest.TestCase):
         self.assertEqual(top_pred['probability'], 100.0)
 
     # ----------------------------------------------------
-    # Low-Confidence Warning (<60%)
+    # Model Selection (Random Forest, KNN, Naive Bayes)
     # ----------------------------------------------------
-    def test_09_low_confidence_warning_under_60(self):
-        """Verifies a low-confidence warning is emitted when top probability is under 60%."""
+    def test_09_model_selection_and_confidence_removed(self):
+        """Verifies model selection works and confidence warning code is cleanly removed."""
         symps = symptoms_data.get_symptoms_list()
-        # Combination known to yield split probability in KNN space
-        vec = [1 if s in ('cough', 'high_fever') else 0 for s in symps]
-        # Use allow_sparse to inspect probability on cough + high_fever
-        res = self.app.post('/diagnose', data={'checkboxvalue': ','.join(map(str, vec)), 'allow_sparse': 'true'})
-        self.assertEqual(res.status_code, 200)
-        data = json.loads(res.data)
-        self.assertLess(data['confidence'], 60.0)
-        self.assertTrue(data['low_confidence'])
-        self.assertIsNotNone(data['low_confidence_warning'])
-        self.assertIn('Low Prediction Confidence', data['low_confidence_warning'])
+        vec = [1 if s in ('cough', 'high_fever', 'breathlessness') else 0 for s in symps]
+        for m_id in ('random_forest', 'knn', 'naive_bayes'):
+            res = self.app.post('/diagnose', data={'checkboxvalue': ','.join(map(str, vec)), 'model': m_id})
+            self.assertEqual(res.status_code, 200)
+            data = json.loads(res.data)
+            self.assertEqual(data['status'], 'success')
+            self.assertEqual(data['model_id'], m_id)
+            self.assertNotIn('confidence', data)
+            self.assertNotIn('low_confidence_warning', data)
 
     # ----------------------------------------------------
     # Red-Flag Emergency Advisory for Critical Symptoms
@@ -413,6 +412,178 @@ class TestDiseasePredictionSystem(unittest.TestCase):
 
         res_del = self.app.delete(f"/api/assessment/{asmt_u2['id']}/delete")
         self.assertEqual(res_del.status_code, 404)
+
+    # ----------------------------------------------------
+    # Multi-Model Hierarchy & Comparison
+    # ----------------------------------------------------
+    def test_20_multi_model_evaluation_and_hierarchy(self):
+        """Verifies diagnose evaluates with #1 Best Model first and suggests 2nd and 3rd models."""
+        symptoms = ['Chills', 'Ulcers on tongue', 'Vomiting', 'Fatigue']
+        res = self.app.post('/diagnose', json={'symptoms': symptoms})
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.data)
+
+        # 1. Best model evaluated first by default
+        self.assertEqual(data['model_id'], 'random_forest')
+        self.assertIn('Random Forest', data['model_name'])
+
+        # 2. Best model object present
+        self.assertIn('best_model', data)
+        self.assertEqual(data['best_model']['model_id'], 'random_forest')
+        self.assertEqual(data['best_model']['rank'], 1)
+        self.assertEqual(data['best_model']['accuracy'], '88.11%')
+
+        # 3. Model comparisons list contains all 3 models in rank order
+        self.assertIn('model_comparisons', data)
+        self.assertEqual(len(data['model_comparisons']), 3)
+        ranks = [m['rank'] for m in data['model_comparisons']]
+        self.assertEqual(ranks, [1, 2, 3])
+
+        model_ids = [m['model_id'] for m in data['model_comparisons']]
+        self.assertEqual(model_ids, ['random_forest', 'naive_bayes', 'knn'])
+
+        # 4. Suggested models contain 2nd (Naive Bayes) and 3rd (KNN)
+        self.assertIn('suggested_models', data)
+        self.assertEqual(len(data['suggested_models']), 2)
+        self.assertEqual(data['suggested_models'][0]['model_id'], 'naive_bayes')
+        self.assertEqual(data['suggested_models'][0]['rank'], 2)
+        self.assertEqual(data['suggested_models'][0]['accuracy'], '84.04%')
+        self.assertEqual(data['suggested_models'][1]['model_id'], 'knn')
+        self.assertEqual(data['suggested_models'][1]['rank'], 3)
+        self.assertEqual(data['suggested_models'][1]['accuracy'], '75.20%')
+
+    # ----------------------------------------------------
+    # Per-Symptom Individual Questions for All Questions
+    # ----------------------------------------------------
+    def test_21_followup_questions_all_per_symptom(self):
+        """Verifies all questions ask for each reported symptom individually."""
+        symptoms = ['Chills', 'Ulcers on tongue', 'Vomiting', 'Fatigue']
+        res = self.app.post('/api/followup/questions', json={'symptoms': symptoms})
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.data)
+
+        questions = data['data']['questions']
+        self.assertTrue(len(questions) >= 4, "Must have duration, severity, frequency, progression + category questions")
+
+        for q in questions:
+            self.assertIn('symptoms', q, f"Question '{q['id']}' must provide per-symptom breakdown")
+            self.assertTrue(len(q['symptoms']) > 0, f"Question '{q['id']}' symptoms list cannot be empty")
+            q_symp_names = [s['name'] for s in q['symptoms']]
+            # Every listed symptom in q must be one of the selected symptoms
+            for s_name in q_symp_names:
+                self.assertIn(s_name, symptoms)
+
+        # Specifically check core questions have all 4 symptoms
+        q_map = {q['id']: q for q in questions}
+        for core_id in ['duration', 'symptom_severities', 'frequency', 'progression']:
+            self.assertIn(core_id, q_map)
+            self.assertEqual(len(q_map[core_id]['symptoms']), 4)
+
+    # ----------------------------------------------------
+    # Per-Symptom Answers Saved to Assessment & Timeline
+    # ----------------------------------------------------
+    def test_22_per_symptom_answers_saved_to_timeline(self):
+        """Verifies per-symptom duration, severity, and progression are stored in timeline."""
+        symptoms = ['Chills', 'Vomiting']
+        follow_up = {
+            'severity': 3,
+            'duration': '1 to 3 days',
+            'progression': 'Unchanged',
+            'symptom_severities': {'Chills': 4, 'Vomiting': 2},
+            'symptom_durations': {'Chills': '< 24 Hours (Acute)', 'Vomiting': '4 to 7 days'},
+            'symptom_progressions': {'Chills': 'Rapidly worsening', 'Vomiting': 'Improving'}
+        }
+
+        asmt = database.save_assessment(
+            patient_name="Test Patient",
+            patient_age=28,
+            patient_gender="Male",
+            symptoms=symptoms,
+            symptom_vector=[0]*132,
+            predicted_disease="Malaria",
+            follow_up=follow_up,
+            user_id=self.user['id']
+        )
+        self.assertIsNotNone(asmt['id'])
+
+        timeline = database.get_timeline_entries(self.user['id'])
+        self.assertTrue(len(timeline) >= 2)
+
+        # Check Chills timeline entry
+        chills_entry = next((e for e in timeline if e['symptom_name'] == 'Chills'), None)
+        self.assertIsNotNone(chills_entry)
+        self.assertEqual(chills_entry['severity'], 4)
+        self.assertEqual(chills_entry['duration'], '< 24 Hours (Acute)')
+        self.assertEqual(chills_entry['progress_status'], 'Rapidly worsening')
+
+        # Check Vomiting timeline entry
+        vomiting_entry = next((e for e in timeline if e['symptom_name'] == 'Vomiting'), None)
+        self.assertIsNotNone(vomiting_entry)
+        self.assertEqual(vomiting_entry['severity'], 2)
+        self.assertEqual(vomiting_entry['duration'], '4 to 7 days')
+        self.assertEqual(vomiting_entry['progress_status'], 'Improving')
+
+    # ----------------------------------------------------
+    # Removed Follow-up Questions Check
+    # ----------------------------------------------------
+    def test_23_removed_respiratory_and_fever_questions(self):
+        """Verifies respiratory_trigger and fever_pattern are never asked in follow-up."""
+        # Breathlessness is respiratory, High Fever and Restlessness are systemic
+        symptoms = ['Breathlessness', 'High Fever', 'Restlessness', 'Patches in throat']
+        fu = followup.get_follow_up_questions(symptoms)
+        q_ids = [q['id'] for q in fu['questions']]
+        self.assertNotIn('respiratory_trigger', q_ids, "respiratory_trigger must be removed from questions")
+        self.assertNotIn('fever_pattern', q_ids, "fever_pattern must be removed from questions")
+
+        # Verify text is also absent
+        all_text = " ".join([q.get('question', '') for q in fu['questions']])
+        self.assertNotIn("wheezing when resting or lying down", all_text)
+        self.assertNotIn("above 101°F/38.3°C", all_text)
+
+    # ----------------------------------------------------
+    # Registration Profile Details & Dashboard Clean
+    # ----------------------------------------------------
+    def test_24_registration_saves_profile_and_dashboard_omits_prompts(self):
+        """Verifies registration asks and saves name, age, gender in profile and dashboard omits prompt."""
+        reg_username = f"patient_{uuid.uuid4().hex[:6]}"
+        reg_data = {
+            'username': reg_username,
+            'email': f"{reg_username}@example.com",
+            'password': "StrongPassword123!",
+            'full_name': "Dr. John Watson",
+            'age': '42',
+            'gender': 'Male'
+        }
+        res = self.app.post('/register', data=reg_data, follow_redirects=True)
+        self.assertEqual(res.status_code, 200)
+
+        # Verify user in database has these details
+        user_row = database.authenticate_user(reg_username, "StrongPassword123!")
+        self.assertIsNotNone(user_row)
+        self.assertEqual(user_row['full_name'], "Dr. John Watson")
+        self.assertEqual(user_row['age'], 42)
+        self.assertEqual(user_row['gender'], "Male")
+
+        # Verify profile page displays these details
+        with self.app.session_transaction() as sess:
+            sess['user_id'] = user_row['id']
+            sess['username'] = user_row['username']
+        prof_res = self.app.get('/profile')
+        self.assertEqual(prof_res.status_code, 200)
+        prof_html = prof_res.data.decode('utf-8')
+        self.assertIn("Dr. John Watson", prof_html)
+        self.assertIn("42 years old", prof_html)
+        self.assertIn("Male", prof_html)
+
+        # Verify dashboard does NOT have visible input fields for name, age, or gender
+        dash_res = self.app.get('/')
+        self.assertEqual(dash_res.status_code, 200)
+        dash_html = dash_res.data.decode('utf-8')
+        self.assertNotIn('placeholder="Enter patient name"', dash_html)
+        self.assertNotIn('placeholder="Enter age"', dash_html)
+        self.assertIn('<input type="hidden" id="name"', dash_html)
+        self.assertIn('<input type="hidden" id="age"', dash_html)
+        self.assertIn('<input type="hidden" id="gender"', dash_html)
 
 
 if __name__ == '__main__':

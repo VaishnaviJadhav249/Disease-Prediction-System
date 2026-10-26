@@ -1,8 +1,16 @@
 from flask import Flask, render_template, request, jsonify, send_from_directory, session, redirect, url_for, send_file, flash
 from functools import wraps
-import json, pickle, csv, os, io
+import json, pickle, csv, os, io, sys
 from datetime import datetime
 import numpy as np
+import joblib
+import pandas as pd
+
+# Ensure src directory is in sys.path
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+SRC_DIR = os.path.join(BASE_DIR, 'src')
+if SRC_DIR not in sys.path:
+    sys.path.insert(0, SRC_DIR)
 
 # Import modular helper services for features
 import database
@@ -10,6 +18,11 @@ import followup
 import symptoms_data
 import explainability
 import pdf_generator
+try:
+    from src import dashboard_charts, config
+except ImportError:
+    import dashboard_charts
+    import config
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'disease-prediction-secret-key-2026-secure')
@@ -38,6 +51,47 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SURVEY_CSV_PATH = os.path.join(BASE_DIR, 'datasets', 'survey.csv')
 MODEL_PATH = os.path.join(BASE_DIR, 'model')
 
+# ---- Multi-model loader ----
+_model_cache = {}
+
+def load_model_by_id(model_id):
+    """
+    Loads and caches the requested ML model by ID.
+    Supports: 'random_forest', 'knn', 'naive_bayes'
+    Falls back to the default Random Forest on any error.
+    """
+    global _model_cache
+    if model_id in _model_cache:
+        return _model_cache[model_id]
+
+    models_dir = os.path.join(BASE_DIR, 'models')
+    paths_map = {
+        'random_forest': os.path.join(models_dir, 'triage_model.joblib'),
+        'knn':           os.path.join(models_dir, 'knn_model.joblib'),
+        'naive_bayes':   os.path.join(models_dir, 'naive_bayes_model.joblib'),
+    }
+
+    path = paths_map.get(model_id)
+    if path and os.path.exists(path):
+        try:
+            model = joblib.load(path)
+            _model_cache[model_id] = model
+            return model
+        except Exception:
+            pass
+
+    # Fallback: use explainability model (Random Forest / KNN pickle)
+    return explainability.get_model()
+
+# ---- Feature names list (kept in sync with training columns) ----
+_FEATURE_NAMES = None
+def get_feature_names():
+    global _FEATURE_NAMES
+    if _FEATURE_NAMES is None:
+        import symptoms_data as _sd
+        _FEATURE_NAMES = _sd.get_symptoms_list()
+    return _FEATURE_NAMES
+
 # Ensure database tables and indexes exist
 database.init_db()
 
@@ -63,9 +117,9 @@ def login_required(f):
 def inject_user():
     """Injects current authenticated user info into all rendered templates."""
     user_id = session.get('user_id')
-    username = session.get('username')
+    user = database.get_user_by_id(user_id) if user_id else None
     return {
-        'current_user': {'id': user_id, 'username': username} if user_id else None
+        'current_user': user
     }
 
 
@@ -77,24 +131,37 @@ def inject_user():
 def register():
     """Handles new user registration with secure salted password hashing."""
     if request.method == 'POST':
-        is_json = request.is_json
-        data = request.get_json(silent=True) if is_json else request.form
+        if request.is_json:
+            json_body = request.get_json(silent=True)
+            data = json_body if isinstance(json_body, dict) else {}
+        else:
+            data = request.form
 
         username = data.get('username', '').strip()
         email = data.get('email', '').strip()
         password = data.get('password', '')
+        full_name = data.get('full_name', '').strip()
+        age = data.get('age', '').strip()
+        gender = data.get('gender', '').strip()
         next_url = request.args.get('next') or '/'
 
         try:
-            user = database.create_user(username, email, password)
+            user = database.create_user(
+                username=username,
+                email=email,
+                password=password,
+                full_name=full_name,
+                age=age,
+                gender=gender
+            )
             session['user_id'] = user['id']
             session['username'] = user['username']
-            if is_json:
+            if request.is_json:
                 return jsonify({'status': 'success', 'message': 'Account created successfully', 'user': user})
             flash('Account created successfully! Welcome to HealthDiagnose.', 'success')
             return redirect(next_url if next_url.startswith('/') else url_for('get_symp'))
         except ValueError as e:
-            if is_json:
+            if request.is_json:
                 return jsonify({'status': 'error', 'message': str(e)}), 400
             flash(str(e), 'danger')
             return render_template('register.html', error=str(e))
@@ -109,7 +176,11 @@ def login():
 
     if request.method == 'POST':
         is_json = request.is_json
-        data = request.get_json(silent=True) if is_json else request.form
+        if is_json:
+            json_body = request.get_json(silent=True)
+            data = json_body if isinstance(json_body, dict) else {}
+        else:
+            data = request.form
 
         username_or_email = data.get('username', '').strip()
         password = data.get('password', '')
@@ -170,11 +241,19 @@ def profile():
     if request.method == 'POST':
         full_name = request.form.get('full_name', '').strip()
         email = request.form.get('email', '').strip()
+        age = request.form.get('age', '').strip()
+        gender = request.form.get('gender', '').strip()
 
         try:
             if email and ('@' not in email or '.' not in email):
                 raise ValueError('Please provide a valid email address.')
-            user = database.update_user_profile(user_id, full_name=full_name, email=email)
+            user = database.update_user_profile(
+                user_id,
+                full_name=full_name,
+                email=email,
+                age=age,
+                gender=gender
+            )
             flash('Profile updated successfully!', 'success')
         except ValueError as e:
             flash(str(e), 'danger')
@@ -274,34 +353,115 @@ def diagnose():
                 'message': 'Please select at least 3 symptoms before requesting a diagnosis. Sparse inputs (1 or 2 symptoms) produce unreliable or alarming results.'
             }), 400
 
-        model = explainability.get_model()
-        probabilities = model.predict_proba([test_list])[0]
-        classes = model.classes_
+        # ---- Multi-Model Comparison & Hierarchy ----
+        # Models ranked by measured accuracy and clinical robustness
+        MODELS_CONFIG = [
+            {
+                'id': 'random_forest',
+                'name': 'Random Forest Classifier',
+                'rank': 1,
+                'badge': '🏆 #1 Best Model (Primary Recommendation)',
+                'accuracy': '88.11%',
+                'accuracy_val': 88.11,
+                'description': 'Ensemble of 100 decision trees. Highest accuracy and noise resistance.',
+                'icon': 'fa-tree'
+            },
+            {
+                'id': 'naive_bayes',
+                'name': 'Naive Bayes (Bernoulli NB)',
+                'rank': 2,
+                'badge': '🥈 2nd Most Powerful (Probabilistic)',
+                'accuracy': '84.04%',
+                'accuracy_val': 84.04,
+                'description': 'Bayesian likelihood model with symptom independence assumption.',
+                'icon': 'fa-percentage'
+            },
+            {
+                'id': 'knn',
+                'name': 'K-Nearest Neighbors (k=41)',
+                'rank': 3,
+                'badge': '🥉 3rd Most Powerful (Instance-Based)',
+                'accuracy': '75.20%',
+                'accuracy_val': 75.20,
+                'description': 'Distance-based pattern matching against 41 closest cohort profiles.',
+                'icon': 'fa-project-diagram'
+            }
+        ]
 
-        # Differential diseases evaluation
-        sorted_indices = np.argsort(probabilities)[::-1]
-        top_3 = []
-        alternative_conditions = []
-        for idx in sorted_indices[:3]:
-            top_3.append({
-                'disease': str(classes[idx]),
-                'probability': round(float(probabilities[idx]) * 100, 1)
-            })
+        # Read model_id from JSON body, form data, or query string (defaults to #1 Best Model)
+        requested_model_id = None
+        if request.is_json:
+            jd = request.get_json(silent=True) or {}
+            requested_model_id = jd.get('model_id') or jd.get('model')
+        else:
+            requested_model_id = request.form.get('model_id') or request.form.get('model') or request.args.get('model_id')
 
-        primary_disease = top_3[0]['disease']
-        confidence = top_3[0]['probability']
+        selected_model_id = requested_model_id if requested_model_id in ('random_forest', 'knn', 'naive_bayes') else 'random_forest'
 
-        for item in top_3[1:]:
-            if item['disease'] != primary_disease and item['disease'] not in alternative_conditions:
-                alternative_conditions.append(item['disease'])
+        feature_names = get_feature_names()
+        model_comparisons = []
+        best_model_result = None
 
-        # Low confidence warning under about 60%
-        is_low_confidence = confidence < 60.0
-        low_confidence_warning = (
-            "Low Prediction Confidence / Inconclusive Pattern Match: The model was unable to find a dominant condition for this symptom pattern. "
-            "Machine learning predictions on sparse or ambiguous patterns should be interpreted with caution. "
-            "Please consult a qualified healthcare professional for clinical evaluation."
-        ) if is_low_confidence else None
+        # Benchmark all 3 models to enable instant cross-model comparison and recommendations
+        for m_cfg in MODELS_CONFIG:
+            m_id = m_cfg['id']
+            try:
+                m_obj = load_model_by_id(m_id)
+                if hasattr(m_obj, 'feature_names_in_'):
+                    X_input = pd.DataFrame([test_list], columns=feature_names)
+                else:
+                    X_input = [test_list]
+
+                probs = m_obj.predict_proba(X_input)[0]
+                classes = m_obj.classes_
+                sorted_indices = np.argsort(probs)[::-1]
+
+                m_top_3 = []
+                for idx in sorted_indices[:3]:
+                    m_top_3.append({
+                        'disease': str(classes[idx]),
+                        'probability': round(float(probs[idx]) * 100, 1)
+                    })
+
+                m_primary = m_top_3[0]['disease']
+                m_confidence = m_top_3[0]['probability']
+
+                m_alts = [item['disease'] for item in m_top_3[1:] if item['disease'] != m_primary]
+
+                comp_item = {
+                    'model_id': m_id,
+                    'model_name': m_cfg['name'],
+                    'rank': m_cfg['rank'],
+                    'badge': m_cfg['badge'],
+                    'accuracy': m_cfg['accuracy'],
+                    'accuracy_val': m_cfg['accuracy_val'],
+                    'description': m_cfg['description'],
+                    'icon': m_cfg['icon'],
+                    'predicted_disease': m_primary,
+                    'confidence': m_confidence,
+                    'top_3_diseases': m_top_3,
+                    'alternative_conditions': m_alts
+                }
+                model_comparisons.append(comp_item)
+                if m_id == 'random_forest':
+                    best_model_result = comp_item
+            except Exception as e:
+                pass
+
+        if not best_model_result and model_comparisons:
+            best_model_result = model_comparisons[0]
+
+        # Annotate whether 2nd and 3rd models agree with the best model
+        best_pred_name = best_model_result['predicted_disease'] if best_model_result else ''
+        for comp in model_comparisons:
+            comp['agrees_with_best'] = (comp['predicted_disease'] == best_pred_name)
+
+        # Active evaluation details (matches selected_model_id, default best model)
+        active_eval = next((m for m in model_comparisons if m['model_id'] == selected_model_id), best_model_result or model_comparisons[0])
+        primary_disease = active_eval['predicted_disease']
+        top_3 = active_eval['top_3_diseases']
+        alternative_conditions = active_eval['alternative_conditions']
+        selected_model_name = active_eval['model_name']
 
         # Red-flag symptoms check (e.g. chest pain, breathlessness)
         all_symptoms_raw = symptoms_data.get_symptoms_list()
@@ -328,18 +488,24 @@ def diagnose():
             "please contact emergency medical services (such as 911 / 112 / 108) or visit the nearest emergency facility immediately."
         ) if has_red_flag else None
 
+        # Suggestions for 2nd and 3rd models
+        suggested_models = [m for m in model_comparisons if m['rank'] in (2, 3)]
+
         return jsonify({
             'status': 'success',
+            'model_id': selected_model_id,
+            'model_name': selected_model_name,
             'predicted_disease': primary_disease,
             'alternative_conditions': alternative_conditions,
             'selected_symptoms': selected_symptoms_display,
-            'confidence': confidence,
             'top_3_diseases': top_3,
-            'low_confidence': is_low_confidence,
-            'low_confidence_warning': low_confidence_warning,
             'has_red_flag': has_red_flag,
             'red_flag_symptoms': detected_red_flags,
-            'red_flag_note': red_flag_note
+            'red_flag_note': red_flag_note,
+            # Best model primary evaluation and comparative benchmarks
+            'best_model': best_model_result,
+            'model_comparisons': model_comparisons,
+            'suggested_models': suggested_models
         })
     else:
         return jsonify({'status': 'error', 'message': 'Invalid request method'}), 405
@@ -364,13 +530,14 @@ def thanks():
 def surveydata():
     """Preserved survey submission writing to datasets/survey.csv."""
     if request.method == 'POST':
-        data = request.form['checkboxvalue'] 
-        data = data.split(',')
+        data = request.form.get('checkboxvalue', '')
+        row_data = [item.strip() for item in data.split(',') if item.strip()]
        
         with open(SURVEY_CSV_PATH, 'a', encoding='UTF8', newline='') as f:
             writer = csv.writer(f)
-            writer.writerow(data)
+            writer.writerow(row_data)
         return jsonify("Successful")
+    return redirect(url_for('survey'))
 
 
 # ==========================================
@@ -408,8 +575,9 @@ def get_followup():
     req_data = request.get_json(silent=True) or {}
     symptoms = req_data.get('symptoms', [])
     if not symptoms and 'symptoms' in request.form:
-        raw_val = request.form.get('symptoms')
-        symptoms = [s.strip() for s in raw_val.split(',') if s.strip()]
+        raw_val = request.form.get('symptoms', '')
+        if raw_val:
+            symptoms = [s.strip() for s in raw_val.split(',') if s.strip()]
 
     questions_data = followup.get_follow_up_questions(symptoms)
     return jsonify({'status': 'success', 'data': questions_data})
@@ -427,9 +595,16 @@ def save_assessment_record():
         if not req_data:
             req_data = request.form.to_dict()
 
-        patient_name = req_data.get('name') or req_data.get('patient_name', session.get('username') or 'Anonymous')
-        patient_age = req_data.get('age') or req_data.get('patient_age', '')
-        patient_gender = req_data.get('gender') or req_data.get('patient_gender', 'Not Specified')
+        current_user_id = session['user_id']
+        current_user = database.get_user_by_id(current_user_id) if current_user_id else None
+
+        default_name = (current_user.get('full_name') or current_user.get('username')) if current_user else (session.get('username') or 'Anonymous')
+        default_age = current_user.get('age') if (current_user and current_user.get('age') is not None) else ''
+        default_gender = current_user.get('gender') if (current_user and current_user.get('gender')) else 'Not Specified'
+
+        patient_name = req_data.get('name') or req_data.get('patient_name') or default_name
+        patient_age = req_data.get('age') or req_data.get('patient_age') or default_age
+        patient_gender = req_data.get('gender') or req_data.get('patient_gender') or default_gender
         
         symptoms = req_data.get('symptoms', [])
         if isinstance(symptoms, str):
@@ -806,6 +981,50 @@ def delete_tracked_symptom_timeline():
 def static_css_fallback(filename):
     """Fallback route for static/css/style.css to resolve static/stylesheets/style.css cleanly."""
     return send_from_directory(os.path.join(app.root_path, 'static', 'stylesheets'), filename)
+
+
+@app.route('/reports/<path:filename>')
+def serve_report_file(filename):
+    """Safely serves generated report artifacts (confusion matrix, feature importance, CSV tables)."""
+    abs_dir = os.path.join(BASE_DIR, 'reports')
+    target = os.path.join(abs_dir, filename)
+    if os.path.exists(target):
+        return send_from_directory(abs_dir, filename)
+    return jsonify({'status': 'error', 'message': f'Report file {filename} not found'}), 404
+
+
+@app.route('/api/evaluation/metrics', methods=['GET'])
+def get_evaluation_metrics():
+    """Returns standardized model evaluation metrics JSON."""
+    try:
+        metrics = dashboard_charts.load_metrics()
+        return jsonify(metrics)
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/evaluation')
+@app.route('/dashboard')
+def evaluation_dashboard():
+    """Renders the comprehensive Medical Triage & Model Evaluation Dashboard."""
+    try:
+        metrics = dashboard_charts.load_metrics()
+        classification_report = dashboard_charts.load_classification_report()
+        metrics_table = dashboard_charts.load_metrics_table()
+        chart_assets = dashboard_charts.verify_dashboard_assets().get('assets', {})
+    except Exception as e:
+        metrics = {'status': 'error', 'error': str(e)}
+        classification_report = []
+        metrics_table = []
+        chart_assets = {}
+
+    return render_template(
+        'evaluation.html',
+        metrics=metrics,
+        classification_report=classification_report,
+        metrics_table=metrics_table,
+        chart_assets=chart_assets
+    )
 
 
 if __name__ == "__main__":

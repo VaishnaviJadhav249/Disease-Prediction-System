@@ -67,15 +67,58 @@ def identify_categories(selected_symptoms):
                     break
     return list(detected_cats)
 
+def format_symptoms_list(symptoms):
+    """Formats symptoms into uniform dicts with name, key, and display label."""
+    return [
+        {
+            'name': s,
+            'key': s.strip().lower().replace(' ', '_'),
+            'label': s.replace('_', ' ').strip().title()
+        } for s in symptoms
+    ]
+
 def get_follow_up_questions(selected_symptoms):
     """
     Generates a tailored list of questions based on selected symptoms and active categories.
+    Asks each question for each reported symptom individually, matching the per-symptom severity UI.
     """
     categories = identify_categories(selected_symptoms)
+    symptoms_meta = format_symptoms_list(selected_symptoms) if selected_symptoms else []
 
-    # Core contextual questions applicable to any symptomatic assessment
-    questions = [
-        {
+    questions = []
+
+    # Helper to find category-relevant symptoms or fall back to all selected
+    def get_cat_symptoms(category_name):
+        cat_keys = SYMPTOM_CATEGORIES.get(category_name, [])
+        matched = []
+        for s in (selected_symptoms or []):
+            clean = s.strip().lower().replace(' ', '_')
+            if any(k in clean or clean in k for k in cat_keys):
+                matched.append(s)
+        return format_symptoms_list(matched if matched else selected_symptoms)
+
+    # 1. Symptom Duration (Per-Symptom)
+    if symptoms_meta:
+        questions.append({
+            'id': 'duration',
+            'category': 'core',
+            'title': 'Symptom Duration',
+            'question': 'When did you first notice each of your reported symptoms?',
+            'required': False,
+            'type': 'per_symptom_choice',
+            'symptoms': symptoms_meta,
+            'default_index': 1,
+            'options': [
+                {'value': 'Less than 24 hours (Acute)', 'label': '< 24 Hours (Acute)'},
+                {'value': '1 to 3 days', 'label': '1 to 3 Days'},
+                {'value': '4 to 7 days', 'label': '4 to 7 Days'},
+                {'value': '1 to 2 weeks', 'label': '1 to 2 Weeks'},
+                {'value': 'More than 2 weeks (Persistent / Chronic)', 'label': '> 2 Weeks (Chronic)'}
+            ],
+            'help_text': 'Helps distinguish acute episodes from chronic conditions for each symptom individually.'
+        })
+    else:
+        questions.append({
             'id': 'duration',
             'category': 'core',
             'title': 'Symptom Duration',
@@ -90,11 +133,10 @@ def get_follow_up_questions(selected_symptoms):
                 'More than 2 weeks (Persistent / Chronic)'
             ],
             'help_text': 'Helps distinguish acute episodes from chronic conditions.'
-        }
-    ]
+        })
 
-    # Individual severity question asking for each selected symptom separately
-    if selected_symptoms:
+    # 2. Individual Symptom Severity (Per-Symptom)
+    if symptoms_meta:
         questions.append({
             'id': 'symptom_severities',
             'category': 'core',
@@ -102,13 +144,7 @@ def get_follow_up_questions(selected_symptoms):
             'question': 'Please select the severity level for each of your reported symptoms:',
             'required': False,
             'type': 'per_symptom_severity',
-            'symptoms': [
-                {
-                    'name': s,
-                    'key': s.strip().lower().replace(' ', '_'),
-                    'label': s.replace('_', ' ').strip().title()
-                } for s in selected_symptoms
-            ],
+            'symptoms': symptoms_meta,
             'options': [
                 {'value': 1, 'label': '1 - Very Mild'},
                 {'value': 2, 'label': '2 - Mild'},
@@ -136,8 +172,27 @@ def get_follow_up_questions(selected_symptoms):
             'help_text': 'Used for symptom tracking on your progression timeline.'
         })
 
-    questions.extend([
-        {
+    # 3. Frequency / Occurrence (Per-Symptom)
+    if symptoms_meta:
+        questions.append({
+            'id': 'frequency',
+            'category': 'core',
+            'title': 'Frequency / Occurrence',
+            'question': 'How frequently does each of your symptoms occur?',
+            'required': False,
+            'type': 'per_symptom_choice',
+            'symptoms': symptoms_meta,
+            'default_index': 1,
+            'options': [
+                {'value': 'Occasional (Comes up rarely or once a day)', 'label': 'Occasional'},
+                {'value': 'Intermittent (Comes and goes in waves)', 'label': 'Intermittent'},
+                {'value': 'Frequent (Present most of the day)', 'label': 'Frequent'},
+                {'value': 'Continuous (Constant and uninterrupted)', 'label': 'Continuous'}
+            ],
+            'help_text': 'Indicates whether each symptom is episodic, intermittent, or continuous.'
+        })
+    else:
+        questions.append({
             'id': 'frequency',
             'category': 'core',
             'title': 'Frequency / Occurrence',
@@ -151,8 +206,29 @@ def get_follow_up_questions(selected_symptoms):
                 'Continuous (Constant and uninterrupted)'
             ],
             'help_text': 'Indicates whether the condition is episodic or continuous.'
-        },
-        {
+        })
+
+    # 4. Symptom Progression / Intensity (Per-Symptom)
+    if symptoms_meta:
+        questions.append({
+            'id': 'progression',
+            'category': 'core',
+            'title': 'Symptom Progression',
+            'question': 'How has the intensity of each symptom changed since it started?',
+            'required': False,
+            'type': 'per_symptom_choice',
+            'symptoms': symptoms_meta,
+            'default_index': 1,
+            'options': [
+                {'value': 'Improving (Getting milder)', 'label': 'Improving'},
+                {'value': 'Unchanged (Remaining steady)', 'label': 'Unchanged'},
+                {'value': 'Gradually worsening', 'label': 'Gradually Worsening'},
+                {'value': 'Rapidly worsening', 'label': 'Rapidly Worsening'}
+            ],
+            'help_text': 'Tracks whether each symptom is resolving, steady, or escalating.'
+        })
+    else:
+        questions.append({
             'id': 'progression',
             'category': 'core',
             'title': 'Symptom Progression',
@@ -166,89 +242,70 @@ def get_follow_up_questions(selected_symptoms):
                 'Rapidly worsening'
             ],
             'help_text': 'Tracks whether the condition is resolving or escalating.'
-        }
-    ])
-
-    # Category-specific targeted questions
-    if 'respiratory' in categories:
-        questions.append({
-            'id': 'respiratory_trigger',
-            'category': 'respiratory',
-            'title': 'Respiratory Context',
-            'question': 'Do you experience shortness of breath or wheezing when resting or lying down?',
-            'required': False,
-            'type': 'select',
-            'options': [
-                'No shortness of breath at rest',
-                'Mild shortness of breath with physical exertion',
-                'Yes, noticeable breathing difficulty even while resting'
-            ],
-            'help_text': 'Respiratory context for follow-up tracking.'
         })
+
+    # Category-specific targeted questions (also asked per relevant symptom)
 
     if 'dermatological' in categories:
-        questions.append({
-            'id': 'skin_spread',
-            'category': 'dermatological',
-            'title': 'Skin Condition Context',
-            'question': 'Have the skin lesions, rash, or itching spread to larger body areas?',
-            'required': False,
-            'type': 'select',
-            'options': [
-                'No, confined to one isolated spot',
-                'Gradually spreading to nearby areas',
-                'Widespread across multiple body regions'
-            ],
-            'help_text': 'Tracks dermatological spread over time.'
-        })
+        derm_symps = get_cat_symptoms('dermatological')
+        if derm_symps:
+            questions.append({
+                'id': 'skin_spread',
+                'category': 'dermatological',
+                'title': 'Skin Condition Context',
+                'question': 'Have the skin lesions, rash, or itching spread to larger body areas?',
+                'required': False,
+                'type': 'per_symptom_choice',
+                'symptoms': derm_symps,
+                'default_index': 0,
+                'options': [
+                    {'value': 'No, confined to one isolated spot', 'label': 'Confined to Single Spot'},
+                    {'value': 'Gradually spreading to nearby areas', 'label': 'Gradually Spreading'},
+                    {'value': 'Widespread across multiple body regions', 'label': 'Widespread Across Body'}
+                ],
+                'help_text': 'Tracks dermatological spread over time.'
+            })
 
     if 'gastrointestinal' in categories:
-        questions.append({
-            'id': 'gi_hydration',
-            'category': 'gastrointestinal',
-            'title': 'Digestive & Hydration Context',
-            'question': 'Are you able to keep water and light food down comfortably?',
-            'required': False,
-            'type': 'select',
-            'options': [
-                'Yes, eating and drinking without difficulty',
-                'Occasional nausea/discomfort, but able to hydrate',
-                'Difficulty keeping fluids down or severe cramping'
-            ],
-            'help_text': 'Evaluates hydration tolerance.'
-        })
+        gi_symps = get_cat_symptoms('gastrointestinal')
+        if gi_symps:
+            questions.append({
+                'id': 'gi_hydration',
+                'category': 'gastrointestinal',
+                'title': 'Digestive & Hydration Context',
+                'question': 'Are you able to keep water and light food down comfortably?',
+                'required': False,
+                'type': 'per_symptom_choice',
+                'symptoms': gi_symps,
+                'default_index': 0,
+                'options': [
+                    {'value': 'Yes, eating and drinking without difficulty', 'label': 'Eating & Drinking Comfortably'},
+                    {'value': 'Occasional nausea/discomfort, but able to hydrate', 'label': 'Occasional Discomfort'},
+                    {'value': 'Difficulty keeping fluids down or severe cramping', 'label': 'Difficulty Keeping Fluids Down'}
+                ],
+                'help_text': 'Evaluates hydration tolerance.'
+            })
 
     if 'musculoskeletal' in categories:
-        questions.append({
-            'id': 'mobility_impact',
-            'category': 'musculoskeletal',
-            'title': 'Mobility & Joint Context',
-            'question': 'Does joint stiffness or muscle pain impede walking or daily movement?',
-            'required': False,
-            'type': 'select',
-            'options': [
-                'Full mobility, minor stiffness only',
-                'Moderate restriction (e.g. morning stiffness)',
-                'Significant difficulty walking or standing'
-            ],
-            'help_text': 'Assesses physical mobility impact.'
-        })
+        musc_symps = get_cat_symptoms('musculoskeletal')
+        if musc_symps:
+            questions.append({
+                'id': 'mobility_impact',
+                'category': 'musculoskeletal',
+                'title': 'Mobility & Joint Context',
+                'question': 'Does joint stiffness or muscle pain impede walking or daily movement?',
+                'required': False,
+                'type': 'per_symptom_choice',
+                'symptoms': musc_symps,
+                'default_index': 0,
+                'options': [
+                    {'value': 'Full mobility, minor stiffness only', 'label': 'Full Mobility'},
+                    {'value': 'Moderate restriction (e.g. morning stiffness)', 'label': 'Moderate Restriction'},
+                    {'value': 'Significant difficulty walking or standing', 'label': 'Significant Movement Difficulty'}
+                ],
+                'help_text': 'Assesses physical mobility impact.'
+            })
 
-    if 'systemic' in categories:
-        questions.append({
-            'id': 'fever_pattern',
-            'category': 'systemic',
-            'title': 'Temperature & Energy Context',
-            'question': 'Have you experienced high fever (above 101°F/38.3°C) or severe chills/sweating?',
-            'required': False,
-            'type': 'select',
-            'options': [
-                'No fever or normal temperature',
-                'Low-grade fever with mild chills',
-                'High fever with recurrent chills or night sweats'
-            ],
-            'help_text': 'Helps monitor systemic infection indicators.'
-        })
 
     return {
         'categories': categories,

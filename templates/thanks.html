@@ -8,33 +8,14 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="static/css/style.css">
+    {% include '_archive_head.html' %}
     
 </head>
-<body>
-    <nav class="navbar navbar-expand-lg modern-navbar shadow">
-        <div class="container">
-            <a class="navbar-brand fw-bold text-white" href="/">
-                <i class="fas fa-heartbeat me-2"></i> HealthDiagnose
-            </a>
-            <ul class="navbar-nav ms-auto d-flex flex-row flex-wrap">
-                <li class="nav-item">
-                    <a class="nav-link px-3" href="/"><i class="fas fa-stethoscope me-1"></i> Diagnose</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link px-3" href="/survey"><i class="fas fa-clipboard-check me-1"></i> Take a Survey</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link px-3" href="/history"><i class="fas fa-history me-1"></i> Assessment History</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link px-3" href="/timeline"><i class="fas fa-chart-line me-1"></i> Symptom Timeline</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link px-3" href="/profile"><i class="fas fa-user-circle me-1"></i> Profile</a>
-                </li>
-            </ul>
-        </div>
-    </nav>
+<body class="archive">
+{% set active = 'survey' %}
+{% set page_title = 'Thank you' %}
+{% set page_lede = 'Your survey response has been recorded.' %}
+{% include '_archive_top.html' %}
 
     <div class="container my-5">
         <div class="row justify-content-center">
@@ -58,22 +39,8 @@
         </div>
     </div>
 
-    <footer class="bg-dark text-white py-4">
-        <div class="container">
-            <div class="row">
-                <div class="col-md-6">
-                    <h5 class="d-flex align-items-center mb-3">
-                        <i class="fas fa-heartbeat me-2"></i> HealthDiagnose
-                    </h5>
-                    <p class="text-muted small">Improving healthcare through ML-powered diagnostics.</p>
-                </div>
-                <div class="col-md-6 text-md-end">
-                    <p class="small text-muted mb-0">&copy; 2025 HealthDiagnose. All rights reserved.</p>
-                </div>
-            </div>
-        </div>
-    </footer>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    {% include '_archive_bottom.html' %}
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

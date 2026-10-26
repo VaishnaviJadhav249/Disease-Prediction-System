@@ -8,60 +8,15 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='stylesheets/style.css') }}">
+    {% include '_archive_head.html' %}
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
-<body>
+<body class="archive">
 
-    <!-- Modern Navigation Bar -->
-    <nav class="navbar navbar-expand-lg modern-navbar sticky-top">
-        <div class="container">
-            <a class="navbar-brand" href="/">
-                <i class="fas fa-heartbeat me-2 text-white"></i> HealthDiagnose
-            </a>
-            <button class="navbar-toggler text-white" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navMenu">
-                <ul class="navbar-nav ms-auto align-items-center">
-                    <li class="nav-item">
-                        <a class="nav-link" href="/"><i class="fas fa-stethoscope me-1"></i> Diagnose</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/survey"><i class="fas fa-clipboard-check me-1"></i> Take a Survey</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/history"><i class="fas fa-history me-1"></i> Assessment History</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link active" href="/timeline"><i class="fas fa-chart-line me-1"></i> Symptom Timeline</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/profile"><i class="fas fa-user-circle me-1"></i> Profile</a>
-                    </li>
-                    {% if current_user %}
-                    <li class="nav-item">
-                        <a class="nav-link text-warning" href="/logout"><i class="fas fa-sign-out-alt me-1"></i> Sign Out</a>
-                    </li>
-                    {% else %}
-                    <li class="nav-item ms-2">
-                        <a class="nav-link" href="/login"><i class="fas fa-sign-in-alt me-1"></i> Sign In</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="btn btn-sm btn-outline-light ms-1" href="/register">Register</a>
-                    </li>
-                    {% endif %}
-                </ul>
-            </div>
-        </div>
-    </nav>
-
-    <!-- Page Header -->
-    <div class="hero-section text-center py-4 mb-4">
-        <div class="container">
-            <h1 class="fw-bold mb-2 text-white"><i class="fas fa-chart-line me-2"></i> Symptom Progression Timeline</h1>
-            <p class="lead mb-0 text-white-50">Track severity trajectories and chronological changes for specific symptoms</p>
-        </div>
-    </div>
+    {% set active = 'timeline' %}
+{% set page_title = 'Symptom timeline' %}
+{% set page_lede = 'Track severity and change over time for each symptom you report.' %}
+{% include '_archive_top.html' %}
 
     <div class="container mb-5">
         <!-- Medical Progression Disclaimer -->
@@ -196,7 +151,8 @@
     </div>
 
     <!-- Log Symptom Entry Modal -->
-    <div class="modal fade" id="addEntryModal" tabindex="-1" aria-labelledby="addEntryModalLabel" aria-hidden="true">
+    {% include '_archive_bottom.html' %}
+<div class="modal fade" id="addEntryModal" tabindex="-1" aria-labelledby="addEntryModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content border-0 shadow">
                 <div class="modal-header bg-primary text-white">
@@ -536,9 +492,9 @@
             const dataPoints = entries.map(e => e.severity);
             const pointBackgroundColors = entries.map(e => {
                 const status = (e.progress_status || '').toLowerCase();
-                if (status.includes('improving')) return '#10b981'; // green
-                if (status.includes('worsening')) return '#ef4444'; // red
-                return '#f59e0b'; // amber/unchanged
+                if (status.includes('improving')) return '#235C35'; // green
+                if (status.includes('worsening')) return '#9B1C24'; // red
+                return '#7A4E00'; // amber/unchanged
             });
 
             chartInstance = new Chart(ctx, {
@@ -548,8 +504,8 @@
                     datasets: [{
                         label: selectedSymptom ? `${selectedSymptom} Severity` : 'Recorded Severity',
                         data: dataPoints,
-                        borderColor: '#4aa8c5',
-                        backgroundColor: 'rgba(74, 168, 197, 0.12)',
+                        borderColor: '#1F4A85',
+                        backgroundColor: 'rgba(31, 74, 133, 0.10)',
                         fill: true,
                         tension: 0.3,
                         pointBackgroundColor: pointBackgroundColors,
